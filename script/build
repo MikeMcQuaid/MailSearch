@@ -6,7 +6,6 @@ cd "$(dirname "$0")/.."
 
 script/prepare
 script/version --xcconfig .build/version.xcconfig
-python3 script/configure-bundle.py .build/Info.plist
 python3 script/licences.py
 [[ -d MailSearch.xcodeproj ]] || script/bootstrap
 xcodegen generate --use-cache --quiet

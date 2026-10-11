@@ -19,7 +19,7 @@ preview label; it does not require a self-hosted machine.
 
 CI runs both sanitizers against synthetic tests, checks dependency
 boundaries and unused code, compiles the icon and sandboxed bundle and
-exercises both archive scripts. It never receives email credentials.
+exercises app archiving. It never receives email credentials.
 Style checks include actionlint and offline zizmor workflow analysis.
 
 App builds default to Release. Test, analysis and release jobs cache Swift
@@ -27,8 +27,8 @@ package downloads, keyed by the lockfile and SwiftMail pin. Compiled output,
 signing material and app data are not cached.
 
 Like MinMaxCal, normal CI signs and notarises when
-`DEVELOPER_ID_APPLICATION_CERTIFICATE` is available, then uploads the app
-and matching source. That secret stands for the complete set below:
+`DEVELOPER_ID_APPLICATION_CERTIFICATE` is available, then uploads the app ZIP.
+That secret stands for the complete set below:
 partial configuration fails instead of silently skipping signing.
 Fork and Dependabot pull requests use ad hoc signing without secrets.
 CI artefacts do not create a GitHub release.
@@ -87,7 +87,7 @@ acceptance before recreating the ZIP.
 Like AgentIDE and MinMaxCal, the Release workflow also performs a dry run
 on pushes changing release-related files. It creates a local `9999.0.0`
 tag, builds, signs, notarises and launches the packaged app on macOS 26
-and 27. The app and matching source are uploaded as workflow artefacts;
+and 27. The app ZIP is uploaded as a workflow artefact;
 the tag is never pushed and no release is created.
 
 Human dry runs require all five secrets, so missing or invalid credentials
@@ -103,10 +103,10 @@ because Actions secrets are unavailable.
    before building so the app carries that version.
 3. After signing, notarisation and successful startup on macOS 26 and 27,
    the workflow pushes the version tag and publishes a full GitHub release
-   with generated notes, the app ZIP and matching source archive. There is
-   no draft or further confirmation. Missing secrets fail the release.
-4. Keep both archives available for every distributed version. Update the
-   README's installation section when the first release is available.
+   with generated notes and the app ZIP. There is no draft or further
+   confirmation. Missing secrets fail the release.
+4. Keep the app ZIP and Git tag available for every distributed version.
+   Update the README's installation section when the first release is available.
 
 A successful hosted dry run is needed to verify signing, notarisation and
 both runtime checks with the configured secrets; local checks cannot
@@ -119,20 +119,10 @@ automatically after those checks pass.
 the project licence. `script/zip` validates the signature before archiving
 the app. Development ZIPs are ad hoc signed and are not notarised releases.
 
-`script/source` requires a clean working tree and an app built from the
-same commit. It archives tracked project files, build scripts, the lockfile
-and each dependency at its pinned revision under `Dependencies/`.
-SwiftMail's transport patch and manifest remain in `vendor/SwiftMail`,
-with its extensions in `script/support`; `script/prepare` applies them
-when rebuilding. Its upstream source is pinned in
-`vendor/SwiftMail/upstream.json`. The normal build resolves those same
-pinned revisions from upstream. The dependency snapshots provide their full
-source even if an upstream repository later becomes unavailable.
-
-To build an extracted source archive, initialise a Git repository there
-with `git init`, `git add .` and `git commit`, then follow the README's
-build instructions. `Dependencies/` is ignored by Git; it holds the
-upstream source snapshots, while the lockfile records their revisions.
+Source is available at each release's Git tag. To rebuild a release,
+check out that tag and follow the README's build instructions.
+`Package.resolved` and `vendor/SwiftMail/upstream.json` pin dependencies;
+the tracked patches and extensions are applied by `script/prepare`.
 
 TLS uses Apple's system frameworks through SwiftNIO Transport Services.
 SwiftNIO SSL and BoringSSL are absent from the package graph and app binary.
