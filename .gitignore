@@ -2,7 +2,6 @@
 .DerivedData/
 .swiftpm/
 .test-scratch/
-Dependencies/
 vendor/SwiftMail/Sources/
 vendor/SwiftMail/LICENSE
 *.xcodeproj/

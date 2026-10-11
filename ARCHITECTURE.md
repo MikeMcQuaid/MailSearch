@@ -358,8 +358,8 @@ without publishing. Dependabot dry runs skip signing and notarisation.
 No email credentials are available to CI. Dependency updates are proposed
 through Dependabot.
 App bundles include the project licence and generated dependency notices.
-Source archives include the exact project commit and pinned dependency sources,
-including the tracked SwiftMail extensions required to reproduce the build.
+Release tags identify the project source, dependency pins and tracked patches
+required to reproduce each build.
 
 ## Native presentation and icons
 

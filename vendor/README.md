@@ -33,7 +33,7 @@ public Network and Security frameworks.
 The extensions add Gmail raw search, password authentication selection and
 flag-change confirmation using the existing typed encoders and parsers.
 SwiftMail retains its BSD-2-Clause licence, included in generated notices
-and app/source archives.
+and app archives.
 
 When updating the pin, review the manifest, patch and extensions against
 upstream, regenerate notices with `python3 script/licences.py --write`
