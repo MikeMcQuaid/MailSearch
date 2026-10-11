@@ -1,0 +1,12 @@
+diff --git a/Sources/NIOCore/AsyncAwaitSupport.swift b/Sources/NIOCore/AsyncAwaitSupport.swift
+--- a/Sources/NIOCore/AsyncAwaitSupport.swift
++++ b/Sources/NIOCore/AsyncAwaitSupport.swift
+@@ -90,7 +90,7 @@ extension EventLoopFuture {
+     @preconcurrency
+     @inlinable
+     public func get() async throws -> Value where Value: Sendable {
+-        try await withUnsafeThrowingContinuation { (cont: UnsafeContinuation<UnsafeTransfer<Value>, Error>) in
++        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<UnsafeTransfer<Value>, Error>) in
+             self.whenComplete { result in
+                 switch result {
+                 case .success(let value):

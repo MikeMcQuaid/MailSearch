@@ -1,0 +1,209 @@
+name: GitHub Actions CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  style:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478 # 2026.09.28.1
+        with:
+          core: false
+          cask: false
+
+      - name: Bootstrap
+        run: script/bootstrap
+
+      - name: Check style
+        run: script/style
+
+  tests:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      # Pull requests from forks and Dependabot have no repository
+      # secrets, so signing is skipped there rather than failing. One
+      # secret stands for the set on purpose: a partly configured set
+      # is a mistake for script/package to report, not a reason to skip.
+      HAS_SIGNING_SECRETS: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE != '' }}
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478 # 2026.09.28.1
+        with:
+          core: false
+          cask: false
+
+      - name: Select Xcode 27
+        run: |
+          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27*.app' -print -quit)"
+          if [[ -z "${xcode}" ]]; then
+            echo "::error::Xcode 27 is not installed on this runner image."
+            exit 1
+          fi
+          sudo xcode-select -s "${xcode}/Contents/Developer"
+          xcodebuild -version
+
+      - name: Download Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Cache Swift package dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            .build/checkouts
+            .build/repositories
+            .build/upstream
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved', 'vendor/SwiftMail/upstream.json') }}
+          restore-keys: ${{ runner.os }}-swiftpm-
+
+      - name: Bootstrap
+        run: script/bootstrap
+
+      - name: Build
+        run: script/build
+
+      - name: Zip
+        run: script/zip
+
+      - name: Archive corresponding source
+        run: script/source
+
+      - name: Sign and notarise
+        if: env.HAS_SIGNING_SECRETS == 'true'
+        env:
+          DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          NOTARIZATION_KEY: ${{ secrets.NOTARIZATION_KEY }}
+          NOTARIZATION_KEY_ID: ${{ secrets.NOTARIZATION_KEY_ID }}
+          NOTARIZATION_ISSUER_ID: ${{ secrets.NOTARIZATION_ISSUER_ID }}
+        run: script/package
+
+      - name: Upload the app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: MailSearch
+          path: |
+            .build/MailSearch-*.zip
+            .build/MailSearch-*-source.tar.gz
+          # The zip lives in a hidden directory, skipped by default.
+          include-hidden-files: true
+          if-no-files-found: error
+
+      - name: Test
+        id: test
+        run: bash script/test 2>&1 | tee .build/test.log
+
+      - name: Test with Address Sanitizer
+        id: address_sanitizer
+        env:
+          ASAN_OPTIONS: halt_on_error=1:log_path=${{ github.workspace }}/.build/asan-runtime
+        run: |
+          # Each target needs its own report; later targets can overwrite it.
+          for target in MailSearchDomainTests MailSearchDataTests MailSearchFeaturesTests; do
+            bash script/test --sanitize address --configuration release --test-product "${target}" \
+              --xunit-output ".build/asan-${target}.xml" 2>&1 | tee ".build/asan-${target}.log"
+          done
+
+      - name: Test with Thread Sanitizer
+        id: thread_sanitizer
+        env:
+          TSAN_OPTIONS: halt_on_error=1
+        run: bash script/test --sanitize thread 2>&1 | tee .build/tsan.log
+
+      - name: Upload test diagnostics
+        if: >-
+          failure() && (steps.test.outcome == 'failure' ||
+          steps.address_sanitizer.outcome == 'failure' || steps.thread_sanitizer.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-diagnostics
+          path: |
+            .build/test.log
+            .build/asan-*
+            .build/tsan.log
+          include-hidden-files: true
+          if-no-files-found: error
+
+  analyze:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478 # 2026.09.28.1
+        with:
+          core: false
+          cask: false
+
+      - name: Select Xcode 27
+        run: |
+          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27*.app' -print -quit)"
+          if [[ -z "${xcode}" ]]; then
+            echo "::error::Xcode 27 is not installed on this runner image."
+            exit 1
+          fi
+          sudo xcode-select -s "${xcode}/Contents/Developer"
+          xcodebuild -version
+
+      - name: Download Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Cache Swift package dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            .build/checkouts
+            .build/repositories
+            .build/upstream
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved', 'vendor/SwiftMail/upstream.json') }}
+          restore-keys: ${{ runner.os }}-swiftpm-
+
+      - name: Bootstrap
+        run: script/bootstrap
+
+      - name: Analyze
+        run: script/analyze
+
+# `style`, `tests` and `analyze` always run, so they are the required
+# checks in branch protection directly. If any job ever becomes
+# conditionally skipped (a job-level `if:`, a path filter, or a
+# matrix), add back an aggregating `check` job with `if: always()`
+# that fails unless every `needs` job succeeded and require that
+# instead: branch protection handles a skipped required-by-name check
+# poorly.

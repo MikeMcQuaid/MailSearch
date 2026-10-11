@@ -1,0 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+script/prepare
+python3 script/check-boundaries.py
+swift build --disable-sandbox --build-system native --disable-build-manifest-caching --enable-index-store --build-tests
+mailsearch_bin="$(swift build --disable-sandbox --build-system native --show-bin-path)"
+swift package --disable-sandbox describe --type json >.build/package-description.json
+# Treat generated upstream SwiftMail sources like the other external packages.
+periphery scan --json-package-manifest-path .build/package-description.json \
+  --exclude-targets SwiftMail \
+  --index-store-path "$mailsearch_bin/index/store" --skip-build --disable-update-check --strict

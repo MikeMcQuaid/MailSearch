@@ -1,0 +1,10 @@
+.build/
+.DerivedData/
+.swiftpm/
+.test-scratch/
+Dependencies/
+vendor/SwiftMail/Sources/
+vendor/SwiftMail/LICENSE
+*.xcodeproj/
+MailSearch.app
+.DS_Store

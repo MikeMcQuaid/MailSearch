@@ -1,0 +1,15 @@
+included:
+  - Sources
+  - App
+  - Tests
+  - script/support
+strict: true
+disabled_rules:
+  - trailing_comma # SwiftFormat uses trailing commas.
+  - opening_brace # SwiftFormat owns wrapping.
+  - identifier_name # IMAP uses UID and protocol ids.
+  - type_body_length # Keep small adapters together.
+  - function_body_length # Sequential protocol operations read as one flow.
+line_length: 140
+type_name:
+  min_length: 3

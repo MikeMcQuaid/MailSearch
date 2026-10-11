@@ -1,0 +1,11 @@
+diff --git a/Sources/NIOIMAPCore/Base64/Chromium.swift b/Sources/NIOIMAPCore/Base64/Chromium.swift
+--- a/Sources/NIOIMAPCore/Base64/Chromium.swift
++++ b/Sources/NIOIMAPCore/Base64/Chromium.swift
+@@ -314,6 +314,7 @@ extension Base64 {
+         -> [UInt8] where Buffer.Element == UInt8
+     {
+         let newCapacity = ((bytes.count + 2) / 3) * 4
++        guard newCapacity > 0 else { return [] }
+ 
+         if let result = bytes.withContiguousStorageIfAvailable({ (input) -> [UInt8] in
+             [UInt8](unsafeUninitializedCapacity: newCapacity) { buffer, length in

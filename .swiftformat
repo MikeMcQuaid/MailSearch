@@ -1,0 +1,7 @@
+--swiftversion 6.4
+--indent 4
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--commas always
+--self remove

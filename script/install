@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+script/build
+rm -rf /Applications/MailSearch.app
+ditto MailSearch.app /Applications/MailSearch.app
+printf 'Installed /Applications/MailSearch.app. Quit and reopen MailSearch to use this build.\n'

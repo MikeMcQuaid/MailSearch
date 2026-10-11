@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+scripts=(script/analyze script/bootstrap script/build script/install script/package script/prepare script/source script/style script/test script/version script/zip Tests/ScriptTests.sh)
+if [[ "${1:-}" == --fix ]]; then
+  swiftformat Sources App Tests script/support Package.swift vendor/SwiftMail/Package.swift
+  shfmt -w -i 2 "${scripts[@]}"
+fi
+swiftformat Sources App Tests script/support Package.swift vendor/SwiftMail/Package.swift --lint
+swiftlint lint --strict --quiet
+shellcheck "${scripts[@]}"
+shfmt -d -i 2 "${scripts[@]}"
+actionlint
+zizmor --offline --strict-collection .github/workflows

@@ -1,0 +1,58 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.06,0.45,0.60,1.00"
+  },
+  "fill-specializations": [
+    {
+      "value": {
+        "automatic-gradient": "extended-srgb:0.06,0.45,0.60,1.00"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "automatic-gradient": "extended-srgb:0.025,0.17,0.27,1.00"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill": "automatic",
+          "fill-specializations": [
+            {
+              "value": "automatic"
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "extended-srgb:1.00,1.00,1.00,1.00"
+              }
+            }
+          ],
+          "image-name": "MailSearch.png",
+          "name": "Envelope and search lens",
+          "position": {
+            "scale": 0.95,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

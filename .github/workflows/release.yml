@@ -1,0 +1,227 @@
+name: Release
+
+on:
+  # Run from `main` to release the current commit at its version.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Bare MAJOR.MINOR.PATCH version, for example 0.1.0
+        required: true
+        type: string
+  # Dry run whenever the release process itself changes, so it cannot
+  # rot unnoticed between releases.
+  push:
+    paths:
+      - .github/workflows/release.yml
+      - App/MailSearch.entitlements
+      - project.yml
+      - script/build
+      - script/package
+      - script/zip
+      - script/source
+      - script/version
+      - script/prepare
+      - script/prepare-swiftmail.py
+      - vendor/**
+
+defaults:
+  run:
+    shell: bash -xeuo pipefail {0}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The version needs tags and the build number counts commits.
+          fetch-depth: 0
+
+      - name: Check the branch
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Releases are cut from main, not ${GITHUB_REF}."
+          exit 1
+
+      - name: Create local version tag
+        id: version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            version="${RELEASE_VERSION}"
+            if [[ "${version}" == "0.0.0" || "${version}" == "9999.0.0" ]]; then
+              echo "::error::Version ${version} is reserved for development and dry runs."
+              exit 1
+            fi
+          else
+            version="9999.0.0"
+          fi
+          if [[ ! "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version must be bare MAJOR.MINOR.PATCH, for example 0.1.0."
+            exit 1
+          fi
+          if git show-ref --verify --quiet "refs/tags/${version}"; then
+            echo "::error::Tag ${version} already exists."
+            exit 1
+          fi
+          if [[ -n "$(git tag --points-at HEAD)" ]]; then
+            echo "::error::The current commit already has a tag."
+            exit 1
+          fi
+          git tag "${version}"
+          [[ "$(git describe --tags --exact-match HEAD)" == "${version}" ]]
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@e99025eb970cfa124b8284a35463d87426917478 # 2026.09.28.1
+        with:
+          core: false
+          cask: false
+
+      - name: Select Xcode 27
+        run: |
+          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27*.app' -print -quit)"
+          if [[ -z "${xcode}" ]]; then
+            echo "::error::Xcode 27 is not installed on this runner image."
+            exit 1
+          fi
+          sudo xcode-select -s "${xcode}/Contents/Developer"
+          xcodebuild -version
+
+      - name: Download Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Cache Swift package dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            .build/checkouts
+            .build/repositories
+            .build/upstream
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved', 'vendor/SwiftMail/upstream.json') }}
+          restore-keys: ${{ runner.os }}-swiftpm-
+
+      - name: Bootstrap
+        run: script/bootstrap
+
+      - name: Build
+        env:
+          XCODE_CONFIGURATION: Release
+        run: script/build
+
+      - name: Zip
+        run: script/zip
+
+      - name: Archive corresponding source
+        run: script/source
+
+      - name: Sign and notarise
+        # Human dry runs test the credentials too. Dependabot cannot
+        # read Actions secrets, while a release must fail without them.
+        if: github.event_name == 'workflow_dispatch' || github.actor != 'dependabot[bot]'
+        env:
+          DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE }}
+          DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          NOTARIZATION_KEY: ${{ secrets.NOTARIZATION_KEY }}
+          NOTARIZATION_KEY_ID: ${{ secrets.NOTARIZATION_KEY_ID }}
+          NOTARIZATION_ISSUER_ID: ${{ secrets.NOTARIZATION_ISSUER_ID }}
+        run: script/package
+
+      - name: Upload the app
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: MailSearch
+          path: |
+            .build/MailSearch-${{ steps.version.outputs.version }}.zip
+            .build/MailSearch-${{ steps.version.outputs.version }}-source.tar.gz
+          # The zip lives in a hidden directory, skipped by default.
+          include-hidden-files: true
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+      - name: Check releases in a dry run
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release list --repo "${GITHUB_REPOSITORY}"
+
+  smoke-test:
+    name: test (macOS ${{ matrix.macos }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26
+            macos: "26"
+          - runner: xcode-27
+            macos: "27"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 5
+    steps:
+      - name: Check runtime platform
+        env:
+          EXPECTED_MACOS: ${{ matrix.macos }}
+        run: |
+          sw_vers
+          [[ "$(sw_vers -productVersion | cut -d. -f1)" == "${EXPECTED_MACOS}" && "$(uname -m)" == arm64 ]]
+
+      - name: Download app
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: MailSearch
+          path: .test-scratch
+
+      - name: Launch app
+        run: |
+          ditto -x -k .test-scratch/MailSearch-*.zip .test-scratch
+          .test-scratch/MailSearch.app/Contents/MacOS/MailSearch &
+          pid=$!
+          trap 'kill "${pid}" &>/dev/null || true' EXIT
+          sleep 10
+          kill -0 "${pid}"
+
+  release:
+    if: github.event_name == 'workflow_dispatch'
+    needs: [build, smoke-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # to push the tag and create the release
+    steps:
+      - name: Set up Git repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the app
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: MailSearch
+          path: .build
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          git tag "${VERSION}" "${GITHUB_SHA}"
+          gh auth setup-git
+          git push origin "refs/tags/${VERSION}"
+          gh release create "${VERSION}" --repo "${GITHUB_REPOSITORY}" --verify-tag --generate-notes \
+            ".build/MailSearch-${VERSION}.zip" ".build/MailSearch-${VERSION}-source.tar.gz"

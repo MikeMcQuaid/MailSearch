@@ -1,0 +1,4 @@
+# Preserve upstream licence text and the whitespace required by patch context.
+THIRD-PARTY-NOTICES.txt -whitespace
+script/support/*.patch -whitespace
+vendor/SwiftMail/*.patch -whitespace

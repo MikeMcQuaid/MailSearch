@@ -1,0 +1,54 @@
+#!/bin/bash
+# Build MailSearch.app; the repository-root symlink points at its output.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+script/prepare
+script/version --xcconfig .build/version.xcconfig
+python3 script/configure-bundle.py .build/Info.plist
+python3 script/licences.py
+[[ -d MailSearch.xcodeproj ]] || script/bootstrap
+xcodegen generate --use-cache --quiet
+mkdir -p MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+cp Package.resolved MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+JOBS="$(sysctl -n hw.ncpu)"
+[[ -n "${SV_SESSION_ID:-}" ]] && JOBS=6
+configuration="${XCODE_CONFIGURATION:-Release}"
+app=".DerivedData/Build/Products/${configuration}/MailSearch.app"
+identity="${MAILSEARCH_SIGNING_IDENTITY:--}"
+if [[ "${identity}" == - ]] && codesign -dv "${app}" 2>&1 | grep -q '^Authority='; then
+  echo 'Set MAILSEARCH_SIGNING_IDENTITY to the previous certificate; refusing an ad hoc downgrade.' >&2
+  exit 1
+fi
+
+ARGS=(
+  -project MailSearch.xcodeproj
+  -scheme MailSearchApp
+  -configuration "${configuration}"
+  -destination "${XCODE_DESTINATION:-platform=macOS,arch=arm64}"
+  -derivedDataPath .DerivedData
+  -clonedSourcePackagesDirPath .build
+  -onlyUsePackageVersionsFromResolvedFile
+  -jobs "${JOBS}"
+  "CODE_SIGN_IDENTITY=${identity}"
+)
+
+if [[ -n "${SV_SESSION_ID:-}" ]]; then
+  export SWIFTPM_DISABLE_SANDBOX=1
+  export SWIFT_BUILD_USE_SANDBOX=0
+  # The literal $(inherited) belongs to Xcode, not the shell.
+  # shellcheck disable=SC2016
+  ARGS+=(
+    -IDEPackageSupportDisableManifestSandbox=1
+    -IDEPackageSupportDisablePackageSandbox=1
+    'OTHER_SWIFT_FLAGS=$(inherited) -disable-sandbox'
+  )
+fi
+
+xcodebuild "${ARGS[@]}" build
+codesign --verify --deep --strict "${app}"
+ln -sfn "${app}" MailSearch.app
+touch "${app}"
+echo "${app}"

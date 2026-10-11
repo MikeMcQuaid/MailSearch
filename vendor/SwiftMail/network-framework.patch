@@ -1,0 +1,315 @@
+diff --git a/Sources/SwiftMail/IMAP/IMAPConnection.swift b/Sources/SwiftMail/IMAP/IMAPConnection.swift
+--- a/Sources/SwiftMail/IMAP/IMAPConnection.swift
++++ b/Sources/SwiftMail/IMAP/IMAPConnection.swift
+@@ -3,7 +3,6 @@
+ @preconcurrency import NIOIMAP
+ import NIOIMAPCore
+ import NIO
+-import NIOSSL
+ 
+ /// Internal connection wrapper used by IMAPServer to manage per-connection state.
+ final class IMAPConnection {
+diff --git a/Sources/SwiftMail/IMAP/IMAPServer.swift b/Sources/SwiftMail/IMAP/IMAPServer.swift
+--- a/Sources/SwiftMail/IMAP/IMAPServer.swift
++++ b/Sources/SwiftMail/IMAP/IMAPServer.swift
+@@ -3,6 +3,7 @@
+ @preconcurrency import NIOIMAP
+ import NIOIMAPCore
+ import NIO
++import NIOTransportServices
+ import OrderedCollections
+ 
+ /**
+@@ -253,7 +254,7 @@
+         self.minimumTLSVersion = minimumTLSVersion
+         self.responseBufferLimit = responseBufferLimit
+         self.parserLimits = parserLimits
+-        self.group = MultiThreadedEventLoopGroup(numberOfThreads: numberOfThreads)
++        self.group = NIOTSEventLoopGroup(loopCount: numberOfThreads)
+ 
+         // Initialize loggers
+         self.logger = Logging.Logger(label: "com.cocoanetics.SwiftMail.IMAPServer")
+diff --git a/Sources/SwiftMail/IMAP/IMAPConnection+Connection.swift b/Sources/SwiftMail/IMAP/IMAPConnection+Connection.swift
+--- a/Sources/SwiftMail/IMAP/IMAPConnection+Connection.swift
++++ b/Sources/SwiftMail/IMAP/IMAPConnection+Connection.swift
+@@ -2,7 +2,8 @@
+ @preconcurrency import NIOIMAP
+ import NIOIMAPCore
+ import NIO
+-import NIOSSL
++import NIOTransportServices
++import Network
+ 
+ extension IMAPConnection {
+     func connectBody() async throws {
+@@ -22,10 +23,18 @@
+         idleTerminationInProgress = false
+ 
+         let tlsTransportMode = try Self.resolveTLSTransportMode(port: port, transportSecurity: transportSecurity)
++        guard tlsTransportMode == .implicitTLS || tlsTransportMode == .plainText else {
++            throw IMAPError.invalidArgument("STARTTLS is unsupported; use implicit TLS")
++        }
++        let tlsOptions = tlsTransportMode == .implicitTLS
++            ? try MailTLSConfiguration.makeClientOptions(
++                certificateVerificationPolicy: certificateVerificationPolicy,
++                minimumTLSVersion: minimumTLSVersion
++            ) : nil
+         let greetingPromise = group.next().makePromise(of: [Capability].self)
+         let greetingHandler = IMAPGreetingHandler(commandTag: "", promise: greetingPromise)
+ 
+-        let bootstrap = makeConnectionBootstrap(initialTLSMode: tlsTransportMode, greetingHandler: greetingHandler)
++        let bootstrap = makeConnectionBootstrap(tlsOptions: tlsOptions, greetingHandler: greetingHandler)
+         let channel = try await openChannel(bootstrap: bootstrap, greetingPromise: greetingPromise)
+ 
+         self.channel = channel
+@@ -40,16 +49,12 @@
+             greetingHandler: greetingHandler
+         )
+         try await refreshCapabilities(using: greetingCapabilities)
+-        try await applyPostGreetingTLSPolicy(tlsTransportMode: tlsTransportMode, capabilities: Array(capabilities))
+     }
+ 
+     private func makeConnectionBootstrap(
+-        initialTLSMode: TLSTransportMode,
++        tlsOptions: NWProtocolTLS.Options?,
+         greetingHandler: IMAPGreetingHandler
+-    ) -> ClientBootstrap {
+-        let host = self.host
+-        let certificateVerificationPolicy = self.certificateVerificationPolicy
+-        let minimumTLSVersion = self.minimumTLSVersion
++    ) -> NIOTSConnectionBootstrap {
+         let duplexLogger = self.duplexLogger
+         let responseBuffer = self.responseBuffer
+         let responseBufferLimit = self.responseBufferLimit
+@@ -57,22 +62,16 @@
+         let logger = self.logger
+         let connectionContext = self.connectionContext
+ 
+-        return ClientBootstrap(group: group)
+-            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+-            .channelOption(ChannelOptions.tcpOption(.tcp_nodelay), value: 1)
++        let bootstrap = NIOTSConnectionBootstrap(group: group)
++            .connectTimeout(.seconds(10))
++            .channelOption(NIOTSChannelOptions.waitForActivity, value: false)
++        if let tlsOptions {
++            _ = bootstrap.tlsOptions(tlsOptions)
++        }
++        return bootstrap
+             .channelInitializer { channel in
+                 do {
+                     let parserOptions = parserLimits.makeParserOptions(bufferLimit: responseBufferLimit)
+-
+-                    if case .implicitTLS = initialTLSMode {
+-                        let sslHandler = try Self.makeTLSHandler(
+-                            for: channel,
+-                            host: host,
+-                            certificateVerificationPolicy: certificateVerificationPolicy,
+-                            minimumTLSVersion: minimumTLSVersion
+-                        )
+-                        try channel.pipeline.syncOperations.addHandler(sslHandler)
+-                    }
+ 
+                     try channel.pipeline.syncOperations.addHandlers([
+                         IMAPClientHandler(parserOptions: parserOptions),
+@@ -99,7 +98,7 @@
+     }
+ 
+     private func openChannel(
+-        bootstrap: ClientBootstrap,
++        bootstrap: NIOTSConnectionBootstrap,
+         greetingPromise: EventLoopPromise<[Capability]>
+     ) async throws -> Channel {
+         do {
+diff --git a/Sources/SwiftMail/Core/Models/EmailAddress.swift b/Sources/SwiftMail/Core/Models/EmailAddress.swift
+--- a/Sources/SwiftMail/Core/Models/EmailAddress.swift
++++ b/Sources/SwiftMail/Core/Models/EmailAddress.swift
+@@ -3,7 +3,6 @@
+ 
+ import Foundation
+ import NIO
+-import NIOSSL
+ 
+ /// Email address representation
+ public struct EmailAddress: Hashable, Codable, Sendable {
+diff --git a/Sources/SwiftMail/MailTransportSecurity.swift b/Sources/SwiftMail/MailTransportSecurity.swift
+--- a/Sources/SwiftMail/MailTransportSecurity.swift
++++ b/Sources/SwiftMail/MailTransportSecurity.swift
+@@ -1,96 +1,48 @@
+-import NIO
+-import NIOSSL
++import Foundation
++import Network
++import Security
+ 
+-/// Transport-security policy for IMAP and SMTP connections.
+ public enum MailTransportSecurity: Sendable, Equatable {
+-    /// Infer transport security from the server port, preserving SwiftMail's legacy defaults.
+-    case automatic
+-
+-    /// Start the connection inside TLS from the first byte.
+-    case implicitTLS
+-
+-    /// Require STARTTLS after the plaintext greeting or EHLO capability exchange.
+-    case startTLS
+-
+-    /// Use plaintext transport without TLS.
+-    case plainText
++    case automatic, implicitTLS, startTLS, plainText
+ }
+ 
+-/// Certificate-verification policy for TLS connections.
+ public enum MailCertificateVerificationPolicy: Sendable, Equatable {
+-    /// Validate the server certificate against trusted roots and the requested hostname.
+     case fullVerification
+-
+-    /// Do not validate the server certificate.
+-    ///
+-    /// Use only when the caller has explicitly chosen to trust an endpoint that presents a
+-    /// self-signed or otherwise locally untrusted certificate.
+-    case noVerification
++    // Additional roots are scoped to this connection, never installed in Keychain.
++    case trustRoots([Data])
+ }
+ 
+-/// The lowest TLS protocol version a connection is allowed to negotiate.
+-///
+-/// Without this, connections inherit NIOSSL's `TLSConfiguration.makeClientConfiguration()`
+-/// default, which is TLS 1.0 — deprecated by
+-/// [RFC 8996](https://datatracker.ietf.org/doc/html/rfc8996) since March 2021.
+-///
+-/// Callers who know every server they talk to speaks TLS 1.3 can raise the floor and make
+-/// downgrades impossible regardless of what the server offers.
+ public enum MailTLSMinimumVersion: Sendable, Equatable {
+-    /// TLS 1.0. Deprecated by RFC 8996 — only for legacy servers that offer nothing newer.
+-    case tlsv1
+-
+-    /// TLS 1.1. Deprecated by RFC 8996.
+-    case tlsv11
+-
+-    /// TLS 1.2. The default, and the lowest version RFC 8996 still permits.
+-    case tlsv12
+-
+-    /// TLS 1.3. The strongest floor; refuses to negotiate anything older.
+-    case tlsv13
+-
+-    var nioTLSVersion: TLSVersion {
+-        switch self {
+-            case .tlsv1: return .tlsv1
+-            case .tlsv11: return .tlsv11
+-            case .tlsv12: return .tlsv12
+-            case .tlsv13: return .tlsv13
+-        }
+-    }
++    case tlsv1, tlsv11, tlsv12, tlsv13
+ }
+ 
+ enum MailTLSConfiguration {
+-    /// - Note: `minimumTLSVersion` has no default for the same reason
+-    ///   `IMAPConnection.makeTLSHandler` has none: a default here turns "forgot to thread the
+-    ///   configured floor through" into "silently chose TLS 1.2", which is exactly the shape of
+-    ///   the implicit-TLS defect this change fixed. The *library-wide* default lives on the
+-    ///   public `IMAPServer`/`SMTPServer` initializers, where choosing it is visible.
+-    static func makeClientConfiguration(
++    static func makeClientOptions(
+         certificateVerificationPolicy: MailCertificateVerificationPolicy,
+         minimumTLSVersion: MailTLSMinimumVersion
+-    ) -> TLSConfiguration {
+-        var configuration = TLSConfiguration.makeClientConfiguration()
+-        configuration.minimumTLSVersion = minimumTLSVersion.nioTLSVersion
+-        switch certificateVerificationPolicy {
+-            case .fullVerification:
+-                configuration.certificateVerification = .fullVerification
+-                configuration.trustRoots = .default
+-            case .noVerification:
+-                configuration.certificateVerification = .none
++    ) throws -> NWProtocolTLS.Options {
++        guard minimumTLSVersion == .tlsv12 || minimumTLSVersion == .tlsv13 else {
++            throw IMAPError.invalidArgument("TLS 1.2 or later is required")
+         }
+-        return configuration
+-    }
+-
+-    static func serverHostnameForTLSHandler(host: String) -> String? {
+-        let normalizedHost = if host.hasPrefix("[") && host.hasSuffix("]") {
+-            String(host.dropFirst().dropLast())
+-        } else {
+-            host
++        let options = NWProtocolTLS.Options()
++        sec_protocol_options_set_min_tls_protocol_version(
++            options.securityProtocolOptions, minimumTLSVersion == .tlsv13 ? .TLSv13 : .TLSv12
++        )
++        if case let .trustRoots(roots) = certificateVerificationPolicy {
++            let certificates = try roots.map { data in
++                guard let certificate = SecCertificateCreateWithData(nil, data as CFData) else {
++                    throw IMAPError.invalidArgument("Invalid trust root")
++                }
++                return certificate
++            }
++            sec_protocol_options_set_verify_block(options.securityProtocolOptions, { _, peer, complete in
++                let trust = sec_trust_copy_ref(peer).takeRetainedValue()
++                let configured = SecTrustSetAnchorCertificates(trust, certificates as CFArray) == errSecSuccess
++                    && SecTrustSetAnchorCertificatesOnly(trust, true) == errSecSuccess
++                    && SecTrustSetNetworkFetchAllowed(trust, false) == errSecSuccess
++                complete(configured && SecTrustEvaluateWithError(trust, nil))
++            }, DispatchQueue(label: "MailSearch.TLSVerification"))
+         }
+-
+-        if (try? SocketAddress(ipAddress: normalizedHost, port: 0)) != nil {
+-            return nil
+-        }
+-        return host
++        return options
+     }
+ }
+diff --git a/Sources/SwiftMail/IMAP/IMAP/Commands/IMAPCommand.swift b/Sources/SwiftMail/IMAP/IMAP/Commands/IMAPCommand.swift
+--- a/Sources/SwiftMail/IMAP/IMAP/Commands/IMAPCommand.swift
++++ b/Sources/SwiftMail/IMAP/IMAP/Commands/IMAPCommand.swift
+@@ -7,7 +7,7 @@
+ import NIOIMAPCore
+ 
+ /// A protocol for all IMAP commands that know their handler type.
+-protocol IMAPCommand where ResultType: Sendable {
++protocol IMAPCommand: SendableMetatype where ResultType: Sendable {
+     /// The result type this command produces
+     associatedtype ResultType
+ 
+diff --git a/Sources/SwiftMail/IMAP/IMAP/Handler/CommandHandler.swift b/Sources/SwiftMail/IMAP/IMAP/Handler/CommandHandler.swift
+--- a/Sources/SwiftMail/IMAP/IMAP/Handler/CommandHandler.swift
++++ b/Sources/SwiftMail/IMAP/IMAP/Handler/CommandHandler.swift
+@@ -30,7 +30,8 @@
+     let commandTag: String?
+ 
+     /// Whether this handler has completed processing
+-    private(set) var isCompleted: Bool = false
++    private var completed = false
++    var isCompleted: Bool { lock.withLock { completed } }
+ 
+     /// Lock for thread-safe access to mutable properties
+     let lock = NSRecursiveLock()
+@@ -60,7 +61,7 @@
+     /// - Parameter context: The channel handler context
+     func handleCompletion(context: ChannelHandlerContext) {
+         lock.withLock {
+-            isCompleted = true
++            completed = true
+         }
+ 
+         // Remove this handler from the pipeline
+@@ -74,7 +75,7 @@
+             if isCompleted {
+                 return false
+             }
+-            isCompleted = true
++            completed = true
+             return true
+         }
+         guard shouldSucceed else { return }
+@@ -88,7 +89,7 @@
+             if isCompleted {
+                 return false
+             }
+-            isCompleted = true
++            completed = true
+             return true
+         }
+         guard shouldFail else { return }
