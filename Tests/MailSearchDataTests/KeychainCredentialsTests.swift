@@ -8,8 +8,9 @@ import Testing
 @Test(arguments: [errSecSuccess, errSecItemNotFound, errSecInteractionNotAllowed])
 func `credential discovery requests metadata without authentication UI`(status: OSStatus) async throws {
     let index = try PropertyListEncoder().encode(["fixture"])
-    let credentials = unsafe KeychainCredentials { query, result in
-        let query = query as NSDictionary
+    let credentials = unsafe KeychainCredentials { attributes, result in
+        // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+        let query = attributes as NSDictionary
         #expect(query[kSecReturnData] == nil)
         #expect(query[kSecReturnAttributes] as? Bool == true)
         #expect(query[kSecUseAuthenticationUI] as? String == kSecUseAuthenticationUISkip as String)
@@ -22,7 +23,7 @@ func `credential discovery requests metadata without authentication UI`(status: 
         await #expect(throws: SearchFailure.keychainAccess) { try await credentials.contains("fixture") }
     } else {
         #expect(try await credentials.contains("fixture") == (status == errSecSuccess))
-        #expect(try await !credentials.contains("another-connection"))
+        #expect(try await credentials.contains("another-connection") == false)
     }
 }
 
@@ -31,8 +32,9 @@ func `all accounts share one Keychain read and denial per app session`(status: O
     let lookups = Mutex(0)
     let passwords = ["fixture-one": "first-secret", "fixture-two": "second-secret"]
     let data = try PropertyListEncoder().encode(passwords)
-    let credentials = unsafe KeychainCredentials { query, result in
-        #expect((query as NSDictionary)[kSecAttrService] as? String == "com.mikemcquaid.MailSearch.credentials")
+    let credentials = unsafe KeychainCredentials { attributes, result in
+        // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+        #expect((attributes as NSDictionary)[kSecAttrService] as? String == "com.mikemcquaid.MailSearch.credentials")
         lookups.withLock { $0 += 1 }
         unsafe result?.pointee = data as CFData
         return status
@@ -55,7 +57,8 @@ func `denied Keychain access is distinct from IMAP authentication`(status: OSSta
     await #expect(throws: SearchFailure.keychainAccess) { try await credentials.password(for: "fixture") }
 }
 
-@Test func `cancelled searches never request a Keychain password`() async {
+@Test
+func `cancelled searches never request a Keychain password`() async {
     let credentials = unsafe KeychainCredentials { _, _ in
         Issue.record("A cancelled task must not request credential access")
         return errSecItemNotFound
@@ -67,14 +70,15 @@ func `denied Keychain access is distinct from IMAP authentication`(status: OSSta
     await #expect(throws: CancellationError.self) { try await task.value }
 }
 
-@Test func `explicit authorisation retries once for all accounts and reuses success`() async throws {
+@Test
+func `explicit authorisation retries once for all accounts and reuses success`() async throws {
     let state = Mutex((allowed: false, reads: 0))
     let data = try PropertyListEncoder().encode(["one": "first-secret", "two": "second-secret"])
     let credentials = unsafe KeychainCredentials { _, result in
-        state.withLock {
-            $0.reads += 1
+        state.withLock { value in
+            value.reads += 1
             unsafe result?.pointee = data as CFData
-            return $0.allowed ? errSecSuccess : errSecAuthFailed
+            return value.allowed ? errSecSuccess : errSecAuthFailed
         }
     }
     for key in ["one", "two"] {
@@ -116,18 +120,25 @@ func `saving updates cached credentials only on success`(status: OSStatus) async
     #expect(reads.withLock { $0 } == 1)
 }
 
-@Test func `passwords share one persistent item and metadata excludes secrets`() async throws {
+// swiftlint:disable function_body_length - The fixture verifies the complete ordered protocol or UI lifecycle.
+@Test
+func `passwords share one persistent item and metadata excludes secrets`() async throws {
     let state = Mutex((data: Data?.none, index: Data?.none, reads: 0, adds: 0))
+    // swiftlint:disable:next closure_body_length - Shared Keychain fixture state.
     let credentials = {
         unsafe KeychainCredentials(
-            copyMatching: { query, result in
-                let query = query as NSDictionary
+            copyMatching: { attributes, result in
+                // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+                let query = attributes as NSDictionary
                 #expect(query[kSecAttrService] as? String == "com.mikemcquaid.MailSearch.credentials")
                 #expect(query[kSecAttrAccount] as? String == "imap-passwords-v1")
-                return state.withLock {
-                    guard let data = $0.data, let index = $0.index else { return errSecItemNotFound }
+                return state.withLock { value in
+                    guard let data = value.data, let index = value.index else {
+                        return errSecItemNotFound
+                    }
+
                     if query[kSecReturnData] as? Bool == true {
-                        $0.reads += 1
+                        value.reads += 1
                         unsafe result?.pointee = data as CFData
                     } else {
                         unsafe result?.pointee = [kSecAttrGeneric as String: index] as CFDictionary
@@ -136,21 +147,27 @@ func `saving updates cached credentials only on success`(status: OSStatus) async
                 }
             },
             update: { _, values in
-                state.withLock {
-                    guard $0.data != nil else { return errSecItemNotFound }
-                    $0.data = (values as NSDictionary)[kSecValueData] as? Data
-                    $0.index = (values as NSDictionary)[kSecAttrGeneric] as? Data
+                state.withLock { value in
+                    guard value.data != nil else {
+                        return errSecItemNotFound
+                    }
+
+                    // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+                    value.data = (values as NSDictionary)[kSecValueData] as? Data
+                    // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+                    value.index = (values as NSDictionary)[kSecAttrGeneric] as? Data
                     return errSecSuccess
                 }
             },
-            add: { query, _ in
-                let query = query as NSDictionary
+            add: { attributes, _ in
+                // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+                let query = attributes as NSDictionary
                 #expect(query[kSecAttrService] as? String == "com.mikemcquaid.MailSearch.credentials")
                 #expect(query[kSecAttrSynchronizable] as? Bool == false)
-                state.withLock {
-                    $0.adds += 1
-                    $0.data = query[kSecValueData] as? Data
-                    $0.index = query[kSecAttrGeneric] as? Data
+                state.withLock { value in
+                    value.adds += 1
+                    value.data = query[kSecValueData] as? Data
+                    value.index = query[kSecAttrGeneric] as? Data
                 }
                 return errSecSuccess
             },
@@ -180,6 +197,8 @@ func `saving updates cached credentials only on success`(status: OSStatus) async
     #expect(try await third.password(for: "two") == "second-secret")
     #expect(state.withLock { $0.adds } == 1)
 }
+
+// swiftlint:enable function_body_length
 
 @Test(arguments: [errSecItemNotFound, errSecSuccess, errSecAuthFailed])
 func `missing corrupt or denied storage never triggers per account reads`(status: OSStatus) async throws {

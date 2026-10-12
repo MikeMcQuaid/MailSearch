@@ -1,16 +1,16 @@
+// swiftlint:disable no_magic_numbers - SwiftUI layout values are points, spacing and opacity.
 import MailSearchDomain
 import SwiftUI
 
+// MARK: - SearchView
+
 public struct SearchView: View {
-    @Bindable private var model: SearchModel
-    private let showSettings: () -> Void
-    private let quit: () -> Void
-    private let copyText: (String) -> Void
-    @Environment(\.openSettings) private var openSettings
-    @FocusState private var searchFocused: Bool
+    // MARK: Lifecycle
 
     public init(
-        model: SearchModel, showSettings: @escaping () -> Void, quit: @escaping () -> Void,
+        model: SearchModel,
+        showSettings: @escaping () -> Void,
+        quit: @escaping () -> Void,
         copyText: @escaping (String) -> Void,
     ) {
         self.model = model
@@ -19,6 +19,9 @@ public struct SearchView: View {
         self.copyText = copyText
     }
 
+    // MARK: Public
+
+    // swiftlint:disable closure_body_length - Keep the declarative view hierarchy and accessibility order together.
     public var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 6) {
@@ -27,20 +30,27 @@ public struct SearchView: View {
                     text: $model.queryText,
                 )
                 .accessibilityLabel(model.flaggedOnly ? "Search flagged mail" : "Search all mail")
-                .textFieldStyle(.roundedBorder).focused($searchFocused)
+                .textFieldStyle(.roundedBorder)
+                .focused($searchFocused)
                 .onSubmit { model.submit() }
                 .help("Search for this whole phrase in message headers and text. Gmail quoting is automatic.")
                 Button("Search", systemImage: "magnifyingglass") { model.submit() }
                     .labelStyle(.iconOnly)
-                    .help("Submit this search to the selected servers").keyboardShortcut(.return, modifiers: .command)
-                    .disabled(!model.flaggedOnly && model.queryText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .help("Submit this search to the selected servers")
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(model.flaggedOnly == false && model.queryText
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
                         .isEmpty)
                 if model.isSearching || model.isStopping {
                     Button("Stop", systemImage: "xmark.circle") { model.cancel() }
-                        .labelStyle(.iconOnly).help("Cancel the current search and keep partial results")
-                        .disabled(!model.isSearching)
+                        .labelStyle(.iconOnly)
+                        .help("Cancel the current search and keep partial results")
+                        .disabled(model.isSearching == false)
                 }
-            }.padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 6)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
+            .padding(.bottom, 6)
             HStack(spacing: 6) {
                 GlassEffectContainer(spacing: 4) {
                     HStack(spacing: 4) {
@@ -57,11 +67,13 @@ public struct SearchView: View {
                                     systemImage: flagged ? "flag.fill" : "tray.fill",
                                 )
                                 .fontWeight(model.flaggedOnly == flagged ? .semibold : .regular)
-                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
                             }
                             .buttonStyle(.plain)
                             .glassEffect(.regular
-                                .tint(model.flaggedOnly == flagged ? .accentColor.opacity(0.3) : .clear).interactive())
+                                .tint(model.flaggedOnly == flagged ? .accentColor.opacity(0.3) : .clear)
+                                .interactive())
                             .accessibilityAddTraits(model.flaggedOnly == flagged ? .isSelected : [])
                             .help(flagged ? "Show flagged or starred mail immediately" :
                                 "Search all selectable server mailboxes")
@@ -71,7 +83,8 @@ public struct SearchView: View {
                 Menu {
                     ForEach(model.accounts) { account in
                         Toggle(account.name, isOn: Binding(
-                            get: { model.isEnabled(account) }, set: { model.setEnabled($0, account: account) },
+                            get: { model.isEnabled(account) },
+                            set: { model.setEnabled($0, account: account) },
                         )).disabled(account.exclusion != nil)
                     }
                 } label: { Label("Accounts", systemImage: "tray.2") }
@@ -94,8 +107,11 @@ public struct SearchView: View {
                 }
                 .labelStyle(.iconOnly)
                 .help("Add or remove this message’s server flag without marking it as read")
-                .disabled(!model.canFlag(model.selection)).keyboardShortcut("l", modifiers: [.command, .shift])
-            }.padding(.horizontal, 8).padding(.bottom, 6)
+                .disabled(model.canFlag(model.selection) == false)
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 6)
             Divider()
             Group {
                 if model.hasSearched {
@@ -105,8 +121,11 @@ public struct SearchView: View {
                         canFlag: model.canFlag,
                         flag: { id in Task { await model.toggleFlag(id) } },
                         copyText: copyText,
-                        preview: model.preview, isPreviewing: model.isPreviewing, previewError: model.previewError,
-                        expanded: model.expanded, togglePreview: model.togglePreview,
+                        preview: model.preview,
+                        isPreviewing: model.isPreviewing,
+                        previewError: model.previewError,
+                        expanded: model.expanded,
+                        togglePreview: model.togglePreview,
                     )
                     .frame(minHeight: 130)
                 } else {
@@ -127,7 +146,7 @@ public struct SearchView: View {
                 if let error = model.error {
                     SelectableText(text: error, caption: true)
                 }
-                if !model.statuses.isEmpty {
+                if model.statuses.isEmpty == false {
                     DisclosureGroup("Account progress and details") {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 8) {
@@ -149,22 +168,30 @@ public struct SearchView: View {
                 }
                 HStack(spacing: 6) {
                     Button("Settings…", systemImage: "gearshape") { showSettings(); openSettings() }
-                        .labelStyle(.iconOnly).help("Configure accounts and app passwords")
+                        .labelStyle(.iconOnly)
+                        .help("Configure accounts and app passwords")
                         .keyboardShortcut(",", modifiers: .command)
                     if model.isSearching || model.isStopping {
                         ProgressView().controlSize(.small).help("Search in progress")
                     }
-                    Text(model.summary).accessibilityAddTraits(.updatesFrequently)
+                    Text(model.summary)
+                        .accessibilityAddTraits(.updatesFrequently)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if model.flagging != nil {
                         ProgressView().controlSize(.small).help("Saving the server flag")
                     }
                     Button("Quit MailSearch", systemImage: "rectangle.portrait.and.arrow.forward", action: quit)
-                        .labelStyle(.iconOnly).help("Quit MailSearch").keyboardShortcut("q", modifiers: .command)
+                        .labelStyle(.iconOnly)
+                        .help("Quit MailSearch")
+                        .keyboardShortcut("q", modifiers: .command)
                 }
-            }.font(.caption).padding(8).textSelection(.enabled)
+            }
+            .font(.caption)
+            .padding(8)
+            .textSelection(.enabled)
         }
-        .buttonStyle(.glass).controlSize(.small)
+        .buttonStyle(.glass)
+        .controlSize(.small)
         .onChange(of: model.selection) { model.selectionDidChange() }
         .task {
             if model.accounts.isEmpty {
@@ -176,10 +203,32 @@ public struct SearchView: View {
             searchFocused = true
         }
     }
+
+    // swiftlint:enable closure_body_length
+
+    // MARK: Private
+
+    @Bindable private var model: SearchModel
+    @Environment(\.openSettings) private var openSettings
+    @FocusState private var searchFocused: Bool
+
+    private let showSettings: () -> Void
+    private let quit: () -> Void
+    private let copyText: (String) -> Void
 }
 
+// MARK: - AccountStatusView
+
 struct AccountStatusView: View {
+    // MARK: Internal
+
     let status: AccountStatus
+
+    var body: some View {
+        SelectableText(text: details, caption: true)
+    }
+
+    // MARK: Private
 
     private var details: String {
         var lines = [status.label] + status.notices
@@ -187,13 +236,13 @@ struct AccountStatusView: View {
             lines.append("Cached results, not yet refreshed.")
         }
         if case .failed = status.outcome {
-            lines += ["IMAP login used: \(status.connection.username)",
-                      "Server: \(status.connection.host):\(status.connection.port) (\(status.connection.security.rawValue))"]
+            lines += [
+                "IMAP login used: \(status.connection.username)",
+                "Server: \(status.connection.host):\(status.connection.port) (\(status.connection.security.rawValue))",
+            ]
         }
         return lines.joined(separator: "\n\n")
     }
-
-    var body: some View {
-        SelectableText(text: details, caption: true)
-    }
 }
+
+// swiftlint:enable no_magic_numbers

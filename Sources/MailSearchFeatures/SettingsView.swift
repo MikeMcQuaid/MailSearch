@@ -1,10 +1,8 @@
+// swiftlint:disable no_magic_numbers - SwiftUI layout values are points, spacing and opacity.
 import SwiftUI
 
 public struct SettingsView: View {
-    private let model: SearchModel
-    private let icon: Image
-    private let version: String
-    private let build: String
+    // MARK: Lifecycle
 
     public init(model: SearchModel, icon: Image, version: String, build: String) {
         self.model = model
@@ -12,6 +10,8 @@ public struct SettingsView: View {
         self.version = version
         self.build = build
     }
+
+    // MARK: Public
 
     public var body: some View {
         TabView {
@@ -22,8 +22,10 @@ public struct SettingsView: View {
                 Form {
                     Section {
                         HStack(spacing: 12) {
-                            icon.resizable().frame(width: 64, height: 64)
-                                .accessibilityHidden(true).help("MailSearch app icon")
+                            icon.resizable()
+                                .frame(width: 64, height: 64)
+                                .accessibilityHidden(true)
+                                .help("MailSearch app icon")
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("MailSearch").font(.title2.bold())
                                 Text("Version \(version) (\(build))").foregroundStyle(.secondary)
@@ -41,4 +43,13 @@ public struct SettingsView: View {
         }
         .frame(width: 640, height: 520)
     }
+
+    // MARK: Private
+
+    private let model: SearchModel
+    private let icon: Image
+    private let version: String
+    private let build: String
 }
+
+// swiftlint:enable no_magic_numbers

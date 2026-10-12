@@ -1,3 +1,4 @@
+// swiftlint:disable no_magic_numbers - SwiftUI layout values are points, spacing and opacity.
 import MailSearchDomain
 import SwiftUI
 
@@ -17,10 +18,15 @@ struct MessagePreviewView: View {
                 SelectableText(text: preview.text.isEmpty ? "(Empty text body)" : preview.text)
                 if preview.isTruncated {
                     Text("Preview limited to 32 KiB.")
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
-        }.frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8).background(.background, in: .rect(cornerRadius: 6))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(8)
+        .background(.background, in: .rect(cornerRadius: 6))
     }
 }
+
+// swiftlint:enable no_magic_numbers

@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - SelectableText
+
 struct SelectableText: NSViewRepresentable {
     let text: String
     var caption = false
@@ -31,12 +33,18 @@ struct SelectableText: NSViewRepresentable {
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextView, context _: Context) -> CGSize? {
         guard let width = proposal.width, let container = unsafe nsView.textContainer,
-              let layout = unsafe nsView.layoutManager else { return nil }
+              let layout = unsafe nsView.layoutManager
+        else {
+            return nil
+        }
+
         container.containerSize = CGSize(width: max(1, width), height: .greatestFiniteMagnitude)
         layout.ensureLayout(for: container)
         return CGSize(width: width, height: max(1, ceil(layout.usedRect(for: container).height)))
     }
 }
+
+// MARK: - CopyableTextView
 
 private final class CopyableTextView: NSTextView {
     override func acceptsFirstMouse(for _: NSEvent?) -> Bool {
@@ -48,9 +56,14 @@ private final class CopyableTextView: NSTextView {
            event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command
         {
             switch event.charactersIgnoringModifiers {
-            case "c": copy(nil); return true
-            case "a": selectAll(nil); return true
-            default: break
+            case "c":
+                copy(nil); return true
+
+            case "a":
+                selectAll(nil); return true
+
+            default:
+                break
             }
         }
         return super.performKeyEquivalent(with: event)

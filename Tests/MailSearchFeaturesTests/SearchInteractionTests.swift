@@ -1,14 +1,19 @@
-import Foundation
 import MailSearchDomain
 @testable import MailSearchFeatures
 import Testing
 
-@MainActor @Test func `previews complete while two searches are still producing results`() async throws {
+@MainActor
+@Test
+func `previews complete while two searches are still producing results`() async throws {
     let client = Client(holdAfterBatch: true)
     let previewer = Previewer()
     let model = SearchModel(
-        source: Accounts([account("a"), account("b")]), client: client,
-        credentials: Credentials(), settings: Settings(), flagger: Flagger(), previewer: previewer,
+        source: Accounts([account("a"), account("b")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: previewer,
     )
     await model.refresh()
     model.showFlagged()
@@ -24,11 +29,17 @@ import Testing
     #expect(model.expanded == id && model.preview?.text == id.accountID)
 }
 
-@MainActor @Test func `account changes cancel only irrelevant work and preserve submitted query`() async {
+@MainActor
+@Test
+func `account changes cancel only irrelevant work and preserve submitted query`() async {
     let client = Client(holdAfterBatch: true)
     let model = SearchModel(
-        source: Accounts([account("a"), account("b"), account("c")]), client: client,
-        credentials: Credentials(), settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a"), account("b"), account("c")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "submitted"
@@ -53,11 +64,17 @@ import Testing
     #expect(Set(model.results.rows.map(\.id.accountID)) == ["b", "c"])
 }
 
-@MainActor @Test func `cached results appear immediately and are removed by an empty refresh`() async {
+@MainActor
+@Test
+func `cached results appear immediately and are removed by an empty refresh`() async {
     let client = Client()
     let model = SearchModel(
-        source: Accounts([account("a")]), client: client, credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.showFlagged()
@@ -71,11 +88,17 @@ import Testing
     #expect(model.statuses["a"]?.outcome == .complete)
 }
 
-@MainActor @Test func `preview clicks collapse and reuse only the exact cached location`() async throws {
+@MainActor
+@Test
+func `preview clicks collapse and reuse only the exact cached location`() async throws {
     let previewer = Previewer()
     let model = SearchModel(
-        source: Accounts([account("a"), account("b")]), client: Client(), credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: previewer,
+        source: Accounts([account("a"), account("b")]),
+        client: Client(),
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: previewer,
     )
     await model.refresh()
     model.showFlagged()
@@ -88,7 +111,7 @@ import Testing
     model.togglePreview(first)
     #expect(model.expanded == nil && model.preview == nil && model.selection == first)
     model.togglePreview(first)
-    #expect(model.preview?.text == first.accountID && !model.isPreviewing)
+    #expect(model.preview?.text == first.accountID && model.isPreviewing == false)
     #expect(await previewer.calls == [first])
     model.togglePreview(second)
     await model.waitForPreview()
@@ -99,7 +122,9 @@ import Testing
     #expect(await previewer.calls == [first, second, first])
 }
 
-@MainActor @Test func `memory cache expires and bounds bytes and entries`() {
+@MainActor
+@Test
+func `memory cache expires and bounds bytes and entries`() {
     var cache = MemoryCache<Int, String>()
     let now = ContinuousClock.now
     cache.insert("fixture", for: 1, bytes: 10, now: now)
@@ -110,20 +135,24 @@ import Testing
     }
     #expect(cache.value(for: 0, now: now) == nil)
     #expect(cache.value(for: 1, now: now) == "fixture")
-    cache.insert("large", for: 9, bytes: 16 * 1024 * 1024, now: now)
+    cache.insert("large", for: 9, bytes: 16 * 1_024 * 1_024, now: now)
     #expect(cache.value(for: 8, now: now) == nil)
     #expect(cache.value(for: 9, now: now) == "large")
-    cache.insert("oversized", for: 10, bytes: 16 * 1024 * 1024 + 1, now: now)
+    cache.insert("oversized", for: 10, bytes: 16 * 1_024 * 1_024 + 1, now: now)
     #expect(cache.value(for: 10, now: now) == nil)
     cache.removeAll()
     #expect(cache.value(for: 9, now: now) == nil)
 }
 
-@MainActor @Test(arguments: [MailProvider.gmail, .iCloud])
+@MainActor
+@Test(arguments: [MailProvider.gmail, .iCloud])
 func `provider endpoints cannot be overridden in settings or verification`(provider: MailProvider) async throws {
     let client = Client()
     let original = MailAccount(
-        id: "provider", name: "Provider", addresses: [], kind: provider == .iCloud ? .iCloud : .imap,
+        id: "provider",
+        name: "Provider",
+        addresses: [],
+        kind: provider == .iCloud ? .iCloud : .imap,
         connection: ConnectionSettings(
             host: provider == .gmail ? "imap.gmail.com" : "imap.mail.me.com",
             port: 993,
@@ -135,8 +164,12 @@ func `provider endpoints cannot be overridden in settings or verification`(provi
     let custom = ConnectionSettings(host: "wrong.example.test", port: 143, username: "corrected", security: .startTLS)
     settings.accounts[original.id] = AccountSettings(connection: custom)
     let model = SearchModel(
-        source: Accounts([original]), client: client, credentials: Credentials(),
-        settings: settings, flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([original]),
+        client: client,
+        credentials: Credentials(),
+        settings: settings,
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     #expect(model.connection(for: original) == provider.fixedEndpoint(custom))
     try await model.configure(original, connection: custom, password: "fixture")
@@ -144,11 +177,17 @@ func `provider endpoints cannot be overridden in settings or verification`(provi
     #expect(settings.accounts[original.id]?.connection == provider.fixedEndpoint(custom))
 }
 
-@MainActor @Test func `failed refresh retains a cache label and new queries do not reuse it`() async {
+@MainActor
+@Test
+func `failed refresh retains a cache label and new queries do not reuse it`() async {
     let client = Client()
     let model = SearchModel(
-        source: Accounts([account("a")]), client: client, credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.showFlagged()
@@ -165,10 +204,16 @@ func `provider endpoints cannot be overridden in settings or verification`(provi
     await model.waitForSearch()
 }
 
-@MainActor @Test func `flag changes invalidate cached searches`() async throws {
+@MainActor
+@Test
+func `flag changes invalidate cached searches`() async throws {
     let model = SearchModel(
-        source: Accounts([account("a")]), client: Client(), credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: Client(),
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.showFlagged()
@@ -180,12 +225,17 @@ func `provider endpoints cannot be overridden in settings or verification`(provi
     await model.waitForSearch()
 }
 
-@MainActor @Test(arguments: [false, true])
+@MainActor
+@Test(arguments: [false, true])
 func `one click opens a preview regardless of list selection event order`(selectionFirst: Bool) async throws {
     let previewer = Previewer()
     let model = SearchModel(
-        source: Accounts([account("a"), account("b")]), client: Client(), credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: previewer,
+        source: Accounts([account("a"), account("b")]),
+        client: Client(),
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: previewer,
     )
     await model.refresh()
     model.showFlagged()
@@ -197,7 +247,7 @@ func `one click opens a preview regardless of list selection event order`(select
             model.selection = id; model.selectionDidChange()
         }
         model.togglePreview(id)
-        if !selectionFirst {
+        if selectionFirst == false {
             model.selectionDidChange()
         }
         await model.waitForPreview()
@@ -209,11 +259,17 @@ func `one click opens a preview regardless of list selection event order`(select
     #expect(await previewer.calls == [first, second])
 }
 
-@MainActor @Test func `reenabling an account waits for its cancelled search to drain`() async {
+@MainActor
+@Test
+func `reenabling an account waits for its cancelled search to drain`() async {
     let client = Client(held: true)
     let model = SearchModel(
-        source: Accounts([account("a")]), client: client, credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "q"
@@ -232,5 +288,5 @@ func `one click opens a preview regardless of list selection event order`(select
     await model.waitForSearch()
     #expect(model.results.rows.count == 1)
     #expect(model.statuses["a"]?.outcome == .complete)
-    #expect(!model.isSearching && !model.isStopping)
+    #expect(model.isSearching == false && model.isStopping == false)
 }

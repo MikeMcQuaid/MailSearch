@@ -11,7 +11,9 @@ func `system TLS verifies certificate trust hostname and expiry before authentic
     let fixture = try Fixture(mode: "plain-ir", certificate: certificate == "untrusted" ? "valid" : certificate)
     let root = try Data(contentsOf: fixture.directory.appendingPathComponent("root.der"))
     let server = IMAPServer(
-        host: "localhost", port: fixture.port, transportSecurity: .implicitTLS,
+        host: "localhost",
+        port: fixture.port,
+        transportSecurity: .implicitTLS,
         certificateVerificationPolicy: certificate == "untrusted" ? .fullVerification : .trustRoots([root]),
     )
     let client = SwiftMailSearchClient(credentials: EmptyCredentials())
@@ -34,18 +36,23 @@ func `provider searches use verified system TLS and read only commands`(mode: St
     let updates = Updates()
     let outcome = try await SwiftMailSearchClient(credentials: EmptyCredentials()).search(
         server: IMAPServer(
-            host: "localhost", port: fixture.port, transportSecurity: .implicitTLS,
+            host: "localhost",
+            port: fixture.port,
+            transportSecurity: .implicitTLS,
             certificateVerificationPolicy: .trustRoots([root]),
         ),
         account: MailAccount(id: "fixture", name: "Fixture", addresses: [], kind: .imap, connection: connection),
-        username: "fixture", password: "fixture", query: SearchQuery("something anything"),
-        iCloud: mode.hasPrefix("icloud"), receive: { await updates.add($0) },
+        username: "fixture",
+        password: "fixture",
+        query: SearchQuery("something anything"),
+        iCloud: mode.hasPrefix("icloud"),
+        receive: { await updates.add($0) },
     )
     #expect(outcome == .complete)
     #expect(await updates.rows.count == 240)
-    #expect(try fixture.commands().allSatisfy {
-        ["LOGIN", "CAPABILITY", "LIST", "EXAMINE", "UID", "SEARCH X-GM-RAW"].contains($0) ||
-            $0.hasPrefix("UID FETCH") && $0.contains("BODY.PEEK")
+    #expect(try fixture.commands().allSatisfy { command in
+        ["LOGIN", "CAPABILITY", "LIST", "EXAMINE", "UID", "SEARCH X-GM-RAW"].contains(command) ||
+            command.hasPrefix("UID FETCH") && command.contains("BODY.PEEK")
     })
 }
 
@@ -63,7 +70,8 @@ func `cancelling a stalled TLS handshake drains within the connection deadline`(
     await #expect(throws: CancellationError.self) { try await task.value }
     try await fixture.waitFor("tls-closed")
     let duration = try #require(Double(String(
-        contentsOf: fixture.directory.appendingPathComponent("tls-duration"), encoding: .utf8,
+        contentsOf: fixture.directory.appendingPathComponent("tls-duration"),
+        encoding: .utf8,
     )))
     #expect(duration < 12)
     #expect(try fixture.commands().isEmpty)

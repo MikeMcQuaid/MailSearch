@@ -64,3 +64,20 @@ update the revision checks in `script/prepare`. Remove a patch when its
 upstream dependency or toolchain fixes the reproduced issue. Run the
 future-handoff test repeatedly with Thread Sanitizer when changing the
 continuation patch, alongside the full protocol and sanitizer suites.
+
+## SwiftSoup and Debug Address Sanitizer
+
+SwiftSoup 2.13.9 is pinned in `Package.resolved`. With Xcode 27.0 (27A266a),
+Swift 6.4 and Address Sanitizer, the HTML preview fixture exhausts a Swift
+concurrency worker's stack in Debug. LLDB stops on the stack guard during
+`MutableTrieNode.makeImmutable()` in `ParsingStrings.swift`, reached through
+`HtmlTreeBuilderState.process` and `SwiftSoup.parse`. The input is the existing
+85-byte synthetic HTML fixture, not real mail or an oversized message.
+
+This explains retaining MailSearch's existing Release-only ASan configuration,
+which differs from MinMaxCal and AgentIDE's Debug runs. Optimisation reduces
+stack usage; ASan instrumentation and `halt_on_error=1` remain enabled for every
+test target. No test, report or runtime check is suppressed. Normal and Thread
+Sanitizer tests remain Debug. Debug ASan is still an unresolved dependency
+limitation, not a passing check. Recheck it when updating SwiftSoup or Xcode;
+remove the Release exception when the complete Debug ASan suite passes.

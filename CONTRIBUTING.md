@@ -10,9 +10,27 @@ Install Xcode 27 and Homebrew, then run:
 script/bootstrap
 script/style --fix
 script/test
+ASAN_OPTIONS=halt_on_error=1 script/test --sanitize address --configuration release \
+  --scratch-path .build/address-sanitizer
+TSAN_OPTIONS=halt_on_error=1 script/test --sanitize thread \
+  --scratch-path .build/thread-sanitizer
 script/build
 script/analyze
 ```
+
+Style enables all rules. Prefer configuring agreement between the tools to
+disabling a rule. Document unavoidable conflicts in the configuration and keep
+domain exceptions scoped to the relevant declaration. Do not add baselines.
+`script/analyze` needs a complete fresh build; missing tools, failed builds and
+skipped SwiftLint files are failures. Logs are saved as `.build/analyze-*.log`.
+Both analyser passes run independently after a successful build. SwiftLint must
+report completion for every application and test source file. The installed
+Xcode 27 / Swift 6.4 macro plugins can fail during SourceKit analysis; that is an
+unresolved tool failure, never a successful check.
+
+Address Sanitizer retains Release because pinned SwiftSoup exhausts a concurrency
+worker's stack under Debug instrumentation. See [vendor/README.md](vendor/README.md).
+Thread Sanitizer and normal tests use Debug. All sanitizer failures block CI.
 
 Add a failing regression test before fixing a bug. Use injected fakes or
 the loopback IMAP fixtures. Automated checks must never access real mail

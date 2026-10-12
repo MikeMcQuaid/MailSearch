@@ -2,6 +2,7 @@ import MailSearchDomain
 import SwiftMail
 
 extension SwiftMailSearchClient {
+    /// Checks TLS and authentication without selecting a mailbox.
     public func verify(connection: ConnectionSettings, password: String) async throws {
         try Task.checkCancellation()
         try await verify(server: Self.server(connection: connection), username: connection.username, password: password)
@@ -22,7 +23,9 @@ extension SwiftMailSearchClient {
     }
 
     static func authenticate(
-        _ server: IMAPServer, username: String, password: String,
+        _ server: IMAPServer,
+        username: String,
+        password: String,
         receive: @Sendable (SearchUpdate) async -> Void = { _ in },
     ) async throws {
         try Task.checkCancellation()

@@ -1,12 +1,41 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-script/prepare
 python3 script/check-boundaries.py
-swift build --disable-sandbox --build-system native --disable-build-manifest-caching --enable-index-store --build-tests
-mailsearch_bin="$(swift build --disable-sandbox --build-system native --show-bin-path)"
-swift package --disable-sandbox describe --type json >.build/package-description.json
-# Treat generated upstream SwiftMail sources like the other external packages.
-periphery scan --json-package-manifest-path .build/package-description.json \
+# A fresh native build indexes every app and test source, including deletions.
+rm -rf .build/analyze
+script/prepare .build/analyze
+flags=(--disable-sandbox --build-system native --disable-build-manifest-caching
+  --enable-index-store --build-tests --scratch-path .build/analyze -v)
+builder=(swift)
+if [[ -n "${SV_SESSION_ID:-}" ]]; then
+  export SWIFTPM_DISABLE_SANDBOX=1
+  export SWIFT_BUILD_USE_SANDBOX=0
+  flags+=(--jobs 6)
+  builder=(nice -n 10 swift)
+fi
+mkdir -p .build
+if ! "${builder[@]}" build "${flags[@]}" >.build/analyze-build.log 2>&1; then
+  echo 'Analysis aborted: the build failed; see .build/analyze-build.log' >&2
+  exit 1
+fi
+swift package --disable-sandbox --scratch-path .build/analyze describe --type json >.build/analyze-package.json
+mailsearch_bin="$(swift build --disable-sandbox --build-system native --scratch-path .build/analyze --show-bin-path)"
+failed=0
+# Keep status output: SwiftLint can skip files without returning a failure.
+swiftlint analyze Sources App Tests --compiler-log-path .build/analyze-build.log --strict \
+  >.build/analyze-swiftlint.log 2>&1 || failed=1
+cat .build/analyze-swiftlint.log
+files="$(find Sources App Tests -name '*.swift' -type f | wc -l | tr -d ' ')"
+if ! grep -Fq " serious in ${files} files." .build/analyze-swiftlint.log ||
+  grep -Ei 'Skipping |error:|crash|Could not' .build/analyze-swiftlint.log; then
+  echo 'SwiftLint analysis was incomplete' >&2
+  failed=1
+fi
+# Generated upstream SwiftMail sources are an external dependency.
+periphery scan --json-package-manifest-path .build/analyze-package.json \
   --exclude-targets SwiftMail \
-  --index-store-path "$mailsearch_bin/index/store" --skip-build --disable-update-check --strict
+  --index-store-path "$mailsearch_bin/index/store" --skip-build --disable-update-check --strict \
+  >.build/analyze-periphery.log 2>&1 || failed=1
+cat .build/analyze-periphery.log
+exit "$failed"

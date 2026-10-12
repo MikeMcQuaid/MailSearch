@@ -2,18 +2,15 @@ import Foundation
 import MailSearchDomain
 import Security
 
-@safe public actor KeychainCredentials: CredentialStore {
-    typealias Lookup = @Sendable (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
-    typealias Update = @Sendable (CFDictionary, CFDictionary) -> OSStatus
-    private let copyMatching: Lookup
-    private let update: Update
-    private let add: Lookup
-    private var cached: Result<[String: String], SearchFailure>?
+@safe
+public actor KeychainCredentials: CredentialStore {
+    // MARK: Lifecycle
 
     public init() {
         unsafe self.init(
             copyMatching: { unsafe SecItemCopyMatching($0, $1) },
-            update: { SecItemUpdate($0, $1) }, add: { unsafe SecItemAdd($0, $1) },
+            update: { SecItemUpdate($0, $1) },
+            add: { unsafe SecItemAdd($0, $1) },
         )
     }
 
@@ -26,6 +23,8 @@ import Security
         self.update = update
         unsafe self.add = add
     }
+
+    // MARK: Public
 
     public func contains(_ key: String) throws -> Bool {
         try Task.checkCancellation()
@@ -41,11 +40,16 @@ import Security
         if status == errSecItemNotFound {
             return false
         }
-        guard status == errSecSuccess else { throw Self.failure(status) }
+        guard status == errSecSuccess else {
+            throw Self.failure(status)
+        }
         guard let metadata = result as? [String: Any],
               let data = metadata[kSecAttrGeneric as String] as? Data,
               let keys = try? PropertyListDecoder().decode([String].self, from: data)
-        else { throw SearchFailure.keychain }
+        else {
+            throw SearchFailure.keychain
+        }
+
         return keys.contains(key)
     }
 
@@ -73,12 +77,43 @@ import Security
         if status == errSecItemNotFound {
             var query = attributes.merging(values) { _, new in new }
             query[kSecAttrLabel as String] = "MailSearch Saved Passwords"
-            let status = add(query as CFDictionary, nil)
-            guard status == errSecSuccess else { throw Self.failure(status) }
+            let added = add(query as CFDictionary, nil)
+            guard added == errSecSuccess else {
+                throw Self.failure(added)
+            }
         } else if status != errSecSuccess {
             throw Self.failure(status)
         }
         cached = .success(passwords)
+    }
+
+    // MARK: Internal
+
+    typealias Lookup = @Sendable (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+    typealias Update = @Sendable (CFDictionary, CFDictionary) -> OSStatus
+
+    // MARK: Private
+
+    private let copyMatching: Lookup
+    private let update: Update
+    private let add: Lookup
+    private var cached: Result<[String: String], SearchFailure>?
+
+    private var attributes: [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.mikemcquaid.MailSearch.credentials",
+            kSecAttrAccount as String: "imap-passwords-v1",
+            kSecAttrSynchronizable as String: false,
+        ]
+    }
+
+    private static func failure(_ status: OSStatus) -> SearchFailure {
+        if [errSecAuthFailed, errSecInteractionNotAllowed, errSecUserCanceled].contains(status) {
+            .keychainAccess
+        } else {
+            .keychain
+        }
     }
 
     private func passwords() throws -> [String: String] {
@@ -106,19 +141,8 @@ import Security
             cached = .failure(.keychain)
             throw SearchFailure.keychain
         }
+
         cached = .success(passwords)
         return passwords
-    }
-
-    private static func failure(_ status: OSStatus) -> SearchFailure {
-        [errSecAuthFailed, errSecInteractionNotAllowed, errSecUserCanceled].contains(status)
-            ? .keychainAccess : .keychain
-    }
-
-    private var attributes: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: "com.mikemcquaid.MailSearch.credentials",
-         kSecAttrAccount as String: "imap-passwords-v1",
-         kSecAttrSynchronizable as String: false]
     }
 }

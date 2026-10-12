@@ -2,11 +2,19 @@ import Foundation
 import MailSearchDomain
 
 public actor MailAutomation: MailAccountSource {
+    // MARK: Lifecycle
+
     public init() {}
+
+    // MARK: Public
 
     public func accounts() throws -> [MailAccount] {
         try Task.checkCancellation()
-        guard let script = NSAppleScript(source: Self.discoveryScript) else { throw SearchFailure.automation }
+        guard let script = NSAppleScript(source: Self.discoveryScript) else {
+            throw SearchFailure.automation
+        }
+
+        // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
         var error: NSDictionary?
         let result = unsafe script.executeAndReturnError(&error)
         if let error {
@@ -16,32 +24,7 @@ public actor MailAutomation: MailAccountSource {
         return Self.decodeAccounts(result)
     }
 
-    static func decodeAccounts(_ result: NSAppleEventDescriptor) -> [MailAccount] {
-        (1 ... max(1, result.numberOfItems)).compactMap { index in
-            guard let row = result.atIndex(index), row.numberOfItems == 10,
-                  let id = row.atIndex(1)?.stringValue else { return nil }
-            let kind = AccountKind(rawValue: row.atIndex(4)?.stringValue ?? "") ?? .unsupported
-            let addresses = row.atIndex(3)
-            return MailAccount(
-                id: id, name: row.atIndex(2)?.stringValue ?? "Unavailable account",
-                addresses: (1 ... max(1, addresses?.numberOfItems ?? 0))
-                    .compactMap { addresses?.atIndex($0)?.stringValue },
-                kind: kind,
-                connection: ConnectionSettings(
-                    host: row.atIndex(5)?.stringValue ?? "", port: Int(row.atIndex(6)?.int32Value ?? 993),
-                    username: row.atIndex(7)?.stringValue ?? "",
-                    security: row.atIndex(8)?.booleanValue == true ? .tls : .startTLS,
-                ),
-                unavailableReason: row.atIndex(9)?.booleanValue == true ? nil : "This account is disabled in Mail.",
-                discoveryWarnings: (1 ... max(1, row.atIndex(10)?.numberOfItems ?? 0))
-                    .compactMap { row.atIndex(10)?.atIndex($0)?.stringValue },
-            )
-        }
-    }
-
-    static func failure(_ error: NSDictionary) -> MailAutomationFailure {
-        MailAutomationFailure(code: (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue)
-    }
+    // MARK: Internal
 
     static let discoveryScript = """
     on run
@@ -116,11 +99,49 @@ public actor MailAutomation: MailAccountSource {
                         set end of fieldWarnings to "enabled (error " & code & ")"
                     end try
                     set end of output to {accountID, accountName, discoveredAddresses, discoveredType, ¬
-                        discoveredHost, discoveredPort, discoveredUsername, discoveredTLS, discoveredEnabled, fieldWarnings}
+                        discoveredHost, discoveredPort, discoveredUsername, discoveredTLS, ¬
+                        discoveredEnabled, fieldWarnings}
                 end repeat
                 return output
             end tell
         end timeout
     end run
     """
+
+    // swiftlint:disable no_magic_numbers - Apple-event lists use one-based positions in the discovery record above.
+    static func decodeAccounts(_ result: NSAppleEventDescriptor) -> [MailAccount] {
+        (1 ... max(1, result.numberOfItems)).compactMap { index in
+            guard let row = result.atIndex(index), row.numberOfItems == 10,
+                  let id = row.atIndex(1)?.stringValue
+            else {
+                return nil
+            }
+
+            let kind = AccountKind(rawValue: row.atIndex(4)?.stringValue ?? "") ?? .unsupported
+            let addresses = row.atIndex(3)
+            return MailAccount(
+                id: id,
+                name: row.atIndex(2)?.stringValue ?? "Unavailable account",
+                addresses: (1 ... max(1, addresses?.numberOfItems ?? 0))
+                    .compactMap { addresses?.atIndex($0)?.stringValue },
+                kind: kind,
+                connection: ConnectionSettings(
+                    host: row.atIndex(5)?.stringValue ?? "",
+                    port: Int(row.atIndex(6)?.int32Value ?? 993),
+                    username: row.atIndex(7)?.stringValue ?? "",
+                    security: row.atIndex(8)?.booleanValue == true ? .tls : .startTLS,
+                ),
+                unavailableReason: row.atIndex(9)?.booleanValue == true ? nil : "This account is disabled in Mail.",
+                discoveryWarnings: (1 ... max(1, row.atIndex(10)?.numberOfItems ?? 0))
+                    .compactMap { row.atIndex(10)?.atIndex($0)?.stringValue },
+            )
+        }
+    }
+
+    // swiftlint:enable no_magic_numbers
+
+    // swiftlint:disable:next legacy_objc_type - Required Objective-C API bridge.
+    static func failure(_ error: NSDictionary) -> MailAutomationFailure {
+        MailAutomationFailure(code: error[NSAppleScript.errorNumber] as? Int)
+    }
 }

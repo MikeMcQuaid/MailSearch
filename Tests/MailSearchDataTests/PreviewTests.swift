@@ -23,28 +23,34 @@ func `preview fetches bounded text without changing flags`(mode: String) async t
         preview = try await SwiftMailSearchClient(credentials: EmptyCredentials()).preview(
             MessageLocation(accountID: "fixture", mailbox: "INBOX", uidValidity: 71, uid: 7),
             server: IMAPServer(host: "127.0.0.1", port: fixture.port, transportSecurity: .plainText),
-            username: "fixture", password: "fixture",
+            username: "fixture",
+            password: "fixture",
             iCloud: mode == "previewicloud",
         )
     } catch { failure = error as? SearchFailure; #expect(failure != nil) }
     let commands = try fixture.commands()
-    #expect(!commands.contains("SELECT"))
-    #expect(!commands.contains { $0.contains("STORE") })
+    #expect(commands.contains("SELECT") == false)
+    #expect(commands.contains { $0.contains("STORE") } == false)
     let bodies = commands.filter { $0.contains("BODY.PEEK") }
     #expect(bodies.count <= 8)
     switch mode {
-    case "previewvalidity", "previewmissing":
+    case "previewmissing",
+         "previewvalidity":
         #expect(failure == .staleMessage)
         #expect(bodies.isEmpty)
+
     case "previewwronguid":
         #expect(preview == nil)
+
     case "previewlarge":
         #expect(failure == nil)
-        #expect(preview?.text.count == 32768 && preview?.isTruncated == true)
+        #expect(preview?.text.count == 32_768 && preview?.isTruncated == true)
         #expect(bodies.count == 8)
+
     case "previewhtml":
         #expect(failure == nil)
         #expect(preview?.text == "Hello world")
+
     default:
         #expect(failure == nil)
         #expect(preview?.text == "Hello, résumé.")
@@ -53,7 +59,8 @@ func `preview fetches bounded text without changing flags`(mode: String) async t
     }
 }
 
-@Test func `preview never chooses attached or embedded text`() {
+@Test
+func `preview never chooses attached or embedded text`() {
     let parts = [
         MessagePart(sectionString: "1", contentType: "text/plain", disposition: "attachment"),
         MessagePart(sectionString: "2", contentType: "message/rfc822"),
@@ -64,7 +71,8 @@ func `preview fetches bounded text without changing flags`(mode: String) async t
     #expect(SwiftMailSearchClient.previewPart(Array(parts.prefix(3))) == nil)
 }
 
-@Test func `IMAP preview completes while a search connection remains busy`() async throws {
+@Test
+func `IMAP preview completes while a search connection remains busy`() async throws {
     let searchFixture = try Fixture(mode: "normal")
     let previewFixture = try Fixture(mode: "previewplain")
     let gate = BatchGate()
@@ -85,7 +93,9 @@ func `preview fetches bounded text without changing flags`(mode: String) async t
                     security: .tls,
                 ),
             ),
-            username: "fixture", password: "fixture", query: SearchQuery("fixture"),
+            username: "fixture",
+            password: "fixture",
+            query: SearchQuery("fixture"),
             receive: { await gate.receive($0) },
         )
     }
@@ -94,11 +104,12 @@ func `preview fetches bounded text without changing flags`(mode: String) async t
         let preview = try await client.preview(
             MessageLocation(accountID: "fixture", mailbox: "INBOX", uidValidity: 71, uid: 7),
             server: IMAPServer(host: "127.0.0.1", port: previewFixture.port, transportSecurity: .plainText),
-            username: "fixture", password: "fixture",
+            username: "fixture",
+            password: "fixture",
         )
         #expect(preview.text == "Hello, résumé.")
         #expect(await gate.batches == 1)
-        #expect(try searchFixture.commands().filter { $0.hasPrefix("UID FETCH") }.count == 1)
+        #expect(try searchFixture.commands().count(where: { $0.hasPrefix("UID FETCH") }) == 1)
         #expect(try previewFixture.commands().contains { $0.contains("BODY.PEEK") })
     } catch {
         Issue.record(error)

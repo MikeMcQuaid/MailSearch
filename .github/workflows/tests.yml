@@ -116,24 +116,41 @@ jobs:
 
       - name: Test
         id: test
-        run: bash script/test 2>&1 | tee .build/test.log
+        run: |
+          failed=0
+          for target in MailSearchDomainTests MailSearchDataTests MailSearchFeaturesTests; do
+            bash script/test --test-product "${target}" --xunit-output ".build/test-${target}.xml" \
+              2>&1 | tee ".build/test-${target}.log" || failed=1
+          done
+          exit "${failed}"
 
       - name: Test with Address Sanitizer
         id: address_sanitizer
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         env:
           ASAN_OPTIONS: halt_on_error=1:log_path=${{ github.workspace }}/.build/asan-runtime
         run: |
+          # SwiftSoup exhausts the worker stack in Debug + ASan; see vendor/README.md.
           # Each target needs its own report; later targets can overwrite it.
+          failed=0
           for target in MailSearchDomainTests MailSearchDataTests MailSearchFeaturesTests; do
-            bash script/test --sanitize address --configuration release --test-product "${target}" \
-              --xunit-output ".build/asan-${target}.xml" 2>&1 | tee ".build/asan-${target}.log"
+            bash script/test --sanitize address --scratch-path .build/address-sanitizer --configuration release \
+              --test-product "${target}" --xunit-output ".build/asan-${target}.xml" 2>&1 | tee ".build/asan-${target}.log" || failed=1
           done
+          exit "${failed}"
 
       - name: Test with Thread Sanitizer
         id: thread_sanitizer
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         env:
-          TSAN_OPTIONS: halt_on_error=1
-        run: bash script/test --sanitize thread 2>&1 | tee .build/tsan.log
+          TSAN_OPTIONS: halt_on_error=1:log_path=${{ github.workspace }}/.build/tsan-runtime
+        run: |
+          failed=0
+          for target in MailSearchDomainTests MailSearchDataTests MailSearchFeaturesTests; do
+            bash script/test --sanitize thread --scratch-path .build/thread-sanitizer --test-product "${target}" \
+              --xunit-output ".build/tsan-${target}.xml" 2>&1 | tee ".build/tsan-${target}.log" || failed=1
+          done
+          exit "${failed}"
 
       - name: Upload test diagnostics
         if: >-
@@ -143,9 +160,9 @@ jobs:
         with:
           name: test-diagnostics
           path: |
-            .build/test.log
+            .build/test-*
             .build/asan-*
-            .build/tsan.log
+            .build/tsan-*
           include-hidden-files: true
           if-no-files-found: error
 
@@ -194,6 +211,17 @@ jobs:
 
       - name: Analyze
         run: script/analyze
+
+      - name: Upload analysis diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: analysis-diagnostics
+          path: |
+            .build/analyze-*.log
+            .build/analyze-package.json
+          include-hidden-files: true
+          if-no-files-found: error
 
 # `style`, `tests` and `analyze` always run, so they are the required
 # checks in branch protection directly. If any job ever becomes
