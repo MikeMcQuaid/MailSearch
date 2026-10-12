@@ -3,13 +3,17 @@ import MailSearchDomain
 @testable import MailSearchFeatures
 import Testing
 
-@MainActor @Test func `partial failure does not hide other accounts`() async {
+@MainActor
+@Test
+func `partial failure does not hide other accounts`() async {
     let client = Client()
     let model = SearchModel(
         source: Accounts([account("good"), account("failed"), account("third")]),
         client: client,
         credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "report"
@@ -21,13 +25,17 @@ import Testing
     #expect(await client.maximum <= 2)
 }
 
-@MainActor @Test func `stale responses never reach replacement search`() async {
+@MainActor
+@Test
+func `stale responses never reach replacement search`() async {
     let client = Client(held: true)
     let model = SearchModel(
         source: Accounts([account("a")]),
         client: client,
         credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "old"
@@ -44,13 +52,17 @@ import Testing
     #expect(await client.maximum == 1)
 }
 
-@MainActor @Test func `cancellation rejects non cooperative late results`() async {
+@MainActor
+@Test
+func `cancellation rejects non cooperative late results`() async {
     let client = Client(held: true)
     let model = SearchModel(
         source: Accounts([account("a")]),
         client: client,
         credentials: Credentials(),
-        settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "q"
@@ -63,17 +75,21 @@ import Testing
     #expect(model.results.rows.isEmpty)
     #expect(model.statuses["a"]?.outcome == .cancelled)
     #expect(model.summary.contains("cancelled"))
-    #expect(!model.isStopping)
+    #expect(model.isStopping == false)
 }
 
-@MainActor @Test func `settings never contain password`() async throws {
+@MainActor
+@Test
+func `settings never contain password`() async throws {
     let credentials = Credentials()
     let settings = Settings()
     let model = SearchModel(
         source: Accounts([]),
         client: Client(),
         credentials: credentials,
-        settings: settings, flagger: Flagger(), previewer: Previewer(),
+        settings: settings,
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     try await model.configure(account("a"), connection: testConnection, password: "fixture-secret")
     #expect(await credentials.password(for: testConnection.credentialKey(accountID: "a")) == "fixture-secret")
@@ -81,12 +97,17 @@ import Testing
         .contains("fixture-secret") == false)
 }
 
-@MainActor @Test(arguments: [false, true])
+@MainActor
+@Test(arguments: [false, true])
 func `flagging preserves identity selection and search connection`(fails: Bool) async throws {
     let flagger = Flagger(failure: fails ? .flagUnconfirmed : nil)
     let model = SearchModel(
-        source: Accounts([account("a"), account("b")]), client: Client(),
-        credentials: Credentials(), settings: Settings(), flagger: flagger, previewer: Previewer(),
+        source: Accounts([account("a"), account("b")]),
+        client: Client(),
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: flagger,
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "q"
@@ -107,19 +128,25 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(model.results.rows.map(\.id) == originalOrder)
     #expect(model.results.rows.filter(\.isFlagged).map(\.id) == (fails ? [] : [clicked]))
     #expect((model.error != nil) == fails)
-    if !fails {
+    if fails == false {
         #expect(model.canFlag(clicked))
         await model.toggleFlag(clicked)
         #expect(await flagger.calls.count == 2)
-        #expect(model.results.rows.allSatisfy { !$0.isFlagged })
+        #expect(model.results.rows.allSatisfy { $0.isFlagged == false })
     }
 }
 
-@MainActor @Test func `late flag completion never changes a new search`() async throws {
+@MainActor
+@Test
+func `late flag completion never changes a new search`() async throws {
     let flagger = Flagger(held: true)
     let model = SearchModel(
-        source: Accounts([account("a")]), client: Client(),
-        credentials: Credentials(), settings: Settings(), flagger: flagger, previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: Client(),
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: flagger,
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "old"
@@ -128,7 +155,7 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     let id = try #require(model.results.rows.first?.id)
     let task = Task { await model.toggleFlag(id) }
     await flagger.wait()
-    #expect(!model.canFlag(id))
+    #expect(model.canFlag(id) == false)
     await model.toggleFlag(id)
     #expect(await flagger.calls.count == 1)
     model.queryText = "new"
@@ -141,10 +168,16 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(model.flagNotice == nil)
 }
 
-@MainActor @Test func `flagged only allows submission without text`() async {
+@MainActor
+@Test
+func `flagged only allows submission without text`() async {
     let model = SearchModel(
-        source: Accounts([account("a")]), client: Client(),
-        credentials: Credentials(), settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: Client(),
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.flaggedOnly = true
@@ -154,12 +187,18 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(model.error == nil)
 }
 
-@MainActor @Test func `cancelling search retains the confirmed flag on retained results`() async throws {
+@MainActor
+@Test
+func `cancelling search retains the confirmed flag on retained results`() async throws {
     let client = Client(holdAfterBatch: true)
     let flagger = Flagger(held: true)
     let model = SearchModel(
-        source: Accounts([account("a")]), client: client,
-        credentials: Credentials(), settings: Settings(), flagger: flagger, previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: flagger,
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "q"
@@ -177,15 +216,21 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(model.flagNotice != nil)
 }
 
-@MainActor @Test func `connect remembers credentials without claiming a verified connection`() async throws {
+@MainActor
+@Test
+func `connect remembers credentials without claiming a verified connection`() async throws {
     let credentials = Credentials()
     let model = SearchModel(
-        source: Accounts([account("a")]), client: Client(),
-        credentials: credentials, settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account("a")]),
+        client: Client(),
+        credentials: credentials,
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     #expect(model.credentialAccounts.isEmpty)
-    #expect(!model.hasSearched)
+    #expect(model.hasSearched == false)
     var connection = testConnection
     connection.host = "imap.gmail.com"
     do {
@@ -201,10 +246,12 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(await credentials.password(for: connection.credentialKey(accountID: "a")) == "abcdefghijklmnop")
     await model.refresh()
     #expect(model.credentialAccounts == ["a"])
-    #expect(!model.hasSearched)
+    #expect(model.hasSearched == false)
 }
 
-@MainActor @Test func `flagged button clears text and submits immediately`() async {
+@MainActor
+@Test
+func `flagged button clears text and submits immediately`() async {
     let client = Client()
     let model = SearchModel(
         source: Accounts([account("a")]),
@@ -224,7 +271,9 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(model.error == nil)
 }
 
-@MainActor @Test func `unflagging preserves the row selection and unrelated flags`() async throws {
+@MainActor
+@Test
+func `unflagging preserves the row selection and unrelated flags`() async throws {
     let flagger = Flagger()
     let model = SearchModel(
         source: Accounts([account("a")]),
@@ -247,7 +296,9 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     #expect(await flagger.flagValues == [true, false])
 }
 
-@MainActor @Test func `preview is on demand serial and rejects stale selection replies`() async throws {
+@MainActor
+@Test
+func `preview is on demand serial and rejects stale selection replies`() async throws {
     let previewer = Previewer(held: true)
     let model = SearchModel(
         source: Accounts([account("a"), account("b")]),
@@ -273,12 +324,14 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     await previewer.resume()
     await model.waitForPreview()
     #expect(model.preview?.text == next.accountID)
-    #expect(!model.isPreviewing)
+    #expect(model.isPreviewing == false)
     model.close()
     #expect(model.preview == nil)
 }
 
-@MainActor @Test func `dismissing the panel rejects an unfinished preview`() async throws {
+@MainActor
+@Test
+func `dismissing the panel rejects an unfinished preview`() async throws {
     let previewer = Previewer(held: true)
     let model = SearchModel(
         source: Accounts([account("a")]),
@@ -297,10 +350,12 @@ func `flagging preserves identity selection and search connection`(fails: Bool) 
     model.cancelPreview()
     await previewer.resume()
     await model.waitForPreview()
-    #expect(model.preview == nil && !model.isPreviewing)
+    #expect(model.preview == nil && model.isPreviewing == false)
 }
 
-@MainActor @Test func `explicit username correction reuses a password only on the same server`() async throws {
+@MainActor
+@Test
+func `explicit username correction reuses a password only on the same server`() async throws {
     let credentials = Credentials()
     let model = SearchModel(
         source: Accounts([account("a")]),

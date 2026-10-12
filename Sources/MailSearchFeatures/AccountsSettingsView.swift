@@ -1,10 +1,13 @@
+// swiftlint:disable no_magic_numbers - SwiftUI layout values are points, spacing and opacity.
 import MailSearchDomain
 import SwiftUI
 
 struct AccountsSettingsView: View {
-    let model: SearchModel
-    @State private var editingAccount: MailAccount?
+    // MARK: Internal
 
+    let model: SearchModel
+
+    // swiftlint:disable closure_body_length - Keep the declarative view hierarchy and accessibility order together.
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -18,17 +21,21 @@ struct AccountsSettingsView: View {
                     .disabled(model.isRefreshing || model.isSearching || model.isStopping)
             }
             Text("Discovered from Mail.app. MailSearch uses separate credentials for server searches.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout)
+                .foregroundStyle(.secondary)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     ForEach(model.accounts) { account in
                         let connection = model.connection(for: account)
+                        let passwordLabel = MailProvider(account: account).passwordLabel
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Toggle(account.name, isOn: Binding(
-                                    get: { model.isEnabled(account) }, set: { model.setEnabled($0, account: account) },
-                                )).toggleStyle(.checkbox)
-                                    .disabled(account.exclusion != nil)
+                                    get: { model.isEnabled(account) },
+                                    set: { model.setEnabled($0, account: account) },
+                                ))
+                                .toggleStyle(.checkbox)
+                                .disabled(account.exclusion != nil)
                                 Spacer()
                                 if account.exclusion == nil {
                                     Button(model.credentialAccounts
@@ -36,15 +43,14 @@ struct AccountsSettingsView: View {
                                     {
                                         editingAccount = account
                                     }
-                                    .help(
-                                        "Set the IMAP username and \(MailProvider(account: account).passwordLabel.lowercased())",
-                                    )
+                                    .help("Set the IMAP username and \(passwordLabel.lowercased())")
                                     .disabled(model.isSearching || model.isStopping || model.isRefreshing)
                                 }
                             }
-                            Text(account.addresses.joined(separator: ", ")).foregroundStyle(.secondary)
+                            Text(account.addresses.joined(separator: ", "))
+                                .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
-                            if account.exclusion == nil, !account.addresses.contains(connection.username) {
+                            if account.exclusion == nil, account.addresses.contains(connection.username) == false {
                                 LabeledContent(
                                     "IMAP login",
                                     value: connection.username.isEmpty ? "Not configured" : connection.username,
@@ -52,12 +58,13 @@ struct AccountsSettingsView: View {
                             }
                             if let exclusion = account.exclusion {
                                 Text(exclusion).font(.caption)
-                            } else if !model.credentialAccounts.contains(account.id) {
-                                Text("\(MailProvider(account: account).passwordLabel) required").font(.caption)
+                            } else if model.credentialAccounts.contains(account.id) == false {
+                                Text("\(passwordLabel) required").font(.caption)
                             }
-                            if !account.discoveryWarnings.isEmpty {
+                            if account.discoveryWarnings.isEmpty == false {
                                 DisclosureGroup("Imported settings need review") {
-                                    Text(account.discoveryWarnings.joined(separator: ", ")).font(.caption)
+                                    Text(account.discoveryWarnings.joined(separator: ", "))
+                                        .font(.caption)
                                         .textSelection(.enabled)
                                 }
                             }
@@ -75,9 +82,13 @@ struct AccountsSettingsView: View {
                 Searches include selectable server folders, including sent, archive, junk and trash.
                 """,
             )
-            .font(.caption).foregroundStyle(.secondary)
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        .padding(20).frame(width: 640).buttonStyle(.glass).textSelection(.enabled)
+        .padding(20)
+        .frame(width: 640)
+        .buttonStyle(.glass)
+        .textSelection(.enabled)
         .navigationTitle("MailSearch Settings")
         .task {
             if model.accounts.isEmpty {
@@ -86,4 +97,12 @@ struct AccountsSettingsView: View {
         }
         .sheet(item: $editingAccount) { AccountEditor(model: model, account: $0) }
     }
+
+    // swiftlint:enable closure_body_length
+
+    // MARK: Private
+
+    @State private var editingAccount: MailAccount?
 }
+
+// swiftlint:enable no_magic_numbers

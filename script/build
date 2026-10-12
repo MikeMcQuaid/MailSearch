@@ -46,7 +46,9 @@ if [[ -n "${SV_SESSION_ID:-}" ]]; then
   )
 fi
 
-xcodebuild "${ARGS[@]}" build
+builder=(xcodebuild)
+[[ -z "${SV_SESSION_ID:-}" ]] || builder=(nice -n 10 xcodebuild)
+"${builder[@]}" "${ARGS[@]}" build
 codesign --verify --deep --strict "${app}"
 ln -sfn "${app}" MailSearch.app
 touch "${app}"

@@ -1,0 +1,3 @@
+disabled_rules:
+  # Literal protocol responses, test inputs and expected values are the fixture.
+  - no_magic_numbers

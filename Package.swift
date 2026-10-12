@@ -8,7 +8,7 @@ let checked: [SwiftSetting] = [
     .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
     .enableUpcomingFeature("InferIsolatedConformances"),
 ]
-let ui = checked + [.defaultIsolation(MainActor.self)]
+let userInterface = checked + [.defaultIsolation(MainActor.self)]
 let package = Package(
     name: "MailSearch",
     platforms: [.macOS(.v26)],
@@ -26,14 +26,21 @@ let package = Package(
         .target(name: "MailSearchDomain", swiftSettings: checked),
         .target(
             name: "MailSearchData",
-            dependencies: ["MailSearchDomain", "SwiftSoup", .product(name: "SwiftMail", package: "SwiftMail"),
-                           .product(name: "Logging", package: "swift-log")],
+            dependencies: [
+                "MailSearchDomain",
+                "SwiftSoup",
+                .product(name: "SwiftMail", package: "SwiftMail"),
+                .product(name: "Logging", package: "swift-log"),
+            ],
             swiftSettings: checked,
         ),
-        .target(name: "MailSearchFeatures", dependencies: ["MailSearchDomain"], swiftSettings: ui),
+        .target(name: "MailSearchFeatures", dependencies: ["MailSearchDomain"], swiftSettings: userInterface),
         .target(
-            name: "MailSearchAppSources", dependencies: ["MailSearchData", "MailSearchFeatures"],
-            path: "App", exclude: ["Info.plist", "MailSearch.entitlements", "Icons"], swiftSettings: ui,
+            name: "MailSearchAppSources",
+            dependencies: ["MailSearchData", "MailSearchFeatures"],
+            path: "App",
+            exclude: ["Info.plist", "MailSearch.entitlements", "Icons"],
+            swiftSettings: userInterface,
         ),
         .testTarget(name: "MailSearchDomainTests", dependencies: ["MailSearchDomain"], swiftSettings: checked),
         .testTarget(
@@ -42,7 +49,11 @@ let package = Package(
             resources: [.copy("Fixtures")],
             swiftSettings: checked,
         ),
-        .testTarget(name: "MailSearchFeaturesTests", dependencies: ["MailSearchFeatures"], swiftSettings: ui),
+        .testTarget(
+            name: "MailSearchFeaturesTests",
+            dependencies: ["MailSearchFeatures"],
+            swiftSettings: userInterface,
+        ),
     ],
     swiftLanguageModes: [.v6],
 )

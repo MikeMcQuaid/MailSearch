@@ -2,12 +2,17 @@ import MailSearchDomain
 @testable import MailSearchFeatures
 import Testing
 
-@MainActor @Test(arguments: ["allowed", "keychain"])
+@MainActor
+@Test(arguments: ["allowed", "keychain"])
 func `a credential dialog dismissing the panel does not cancel its search`(accountID: String) async {
     let client = Client(held: true)
     let model = SearchModel(
-        source: Accounts([account(accountID)]), client: client,
-        credentials: Credentials(), settings: Settings(), flagger: Flagger(), previewer: Previewer(),
+        source: Accounts([account(accountID)]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: Previewer(),
     )
     await model.refresh()
     model.queryText = "q"

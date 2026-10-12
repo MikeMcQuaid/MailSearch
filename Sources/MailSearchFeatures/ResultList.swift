@@ -1,9 +1,15 @@
+// swiftlint:disable no_magic_numbers - SwiftUI layout values are points, spacing and opacity.
 import MailSearchDomain
 import SwiftUI
 
+// MARK: - ResultList
+
 struct ResultList: View {
+    // MARK: Internal
+
     let results: [SearchResult]
     @Binding var selection: MessageLocation?
+
     let canFlag: (MessageLocation?) -> Bool
     let flag: (MessageLocation) -> Void
     let copyText: (String) -> Void
@@ -12,9 +18,8 @@ struct ResultList: View {
     let previewError: String?
     let expanded: MessageLocation?
     let togglePreview: (MessageLocation) -> Void
-    @State private var scrollPosition = ScrollPosition(idType: MessageLocation.self)
-    @FocusState private var resultsFocused: Bool
 
+    // swiftlint:disable closure_body_length - Keep the declarative view hierarchy and accessibility order together.
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
@@ -38,11 +43,12 @@ struct ResultList: View {
                                 }
                         }
                     }
-                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
                     .background(selection == result.id ? Color.accentColor.opacity(0.15) : .clear)
                     .contextMenu {
                         Button(result.isFlagged ? "Unflag" : "Flag") { flag(result.id) }
-                            .disabled(!canFlag(result.id))
+                            .disabled(canFlag(result.id) == false)
                         Button("Copy Message Details") {
                             copyText("""
                             Subject: \(result.subject)
@@ -61,14 +67,18 @@ struct ResultList: View {
             .scrollTargetLayout()
         }
         .scrollPosition($scrollPosition)
-        .focusable().focused($resultsFocused)
+        .focusable()
+        .focused($resultsFocused)
         .onChange(of: expanded) {
             if let expanded {
                 scrollPosition.scrollTo(id: expanded, anchor: .top)
             }
         }
         .onKeyPress(keys: [.upArrow, .downArrow]) { key in
-            guard !results.isEmpty else { return .ignored }
+            guard results.isEmpty == false else {
+                return .ignored
+            }
+
             let step = key.key == .downArrow ? 1 : -1
             let index = results.firstIndex { $0.id == selection } ?? (step == 1 ? -1 : results.count)
             let id = results[min(max(index + step, 0), results.count - 1)].id
@@ -77,7 +87,10 @@ struct ResultList: View {
             return .handled
         }
         .onKeyPress(keys: [.space, .return]) { _ in
-            guard let id = selection else { return .ignored }
+            guard let id = selection else {
+                return .ignored
+            }
+
             togglePreview(id)
             return .handled
         }
@@ -85,7 +98,16 @@ struct ResultList: View {
         .accessibilityHint("Click, Return or Space toggles the text preview without marking the message as read.")
         .transaction { $0.animation = nil }
     }
+
+    // swiftlint:enable closure_body_length
+
+    // MARK: Private
+
+    @State private var scrollPosition: ScrollPosition = .init(idType: MessageLocation.self)
+    @FocusState private var resultsFocused: Bool
 }
+
+// MARK: - ResultRow
 
 struct ResultRow: View {
     let result: SearchResult
@@ -110,7 +132,11 @@ struct ResultRow: View {
                 }
             }
             Text("\(result.accountName) · \(mailboxDisplayName(result.id.mailbox))")
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 }
+
+// swiftlint:enable no_magic_numbers

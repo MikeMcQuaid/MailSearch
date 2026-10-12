@@ -3,7 +3,9 @@ import MailSearchDomain
 import SwiftUI
 import Testing
 
-@MainActor @Test(.serialized, arguments: [false, true], [30, 8])
+// swiftlint:disable function_body_length - The fixture verifies the complete ordered protocol or UI lifecycle.
+@MainActor
+@Test(.serialized, arguments: [false, true], [30, 8])
 func `live search keeps the preview visible when newer results arrive`(
     arriveWhileLoading: Bool,
     lines: Int,
@@ -13,8 +15,12 @@ func `live search keeps the preview visible when newer results arrive`(
     let body = String(repeating: "A line of synthetic preview text.\n", count: lines)
     let previewer = Previewer(held: true, text: body)
     let model = SearchModel(
-        source: Accounts([account("preview body")]), client: client,
-        credentials: Credentials(), settings: Settings(), flagger: Flagger(), previewer: previewer,
+        source: Accounts([account("preview body")]),
+        client: client,
+        credentials: Credentials(),
+        settings: Settings(),
+        flagger: Flagger(),
+        previewer: previewer,
     )
     await model.refresh()
     model.showFlagged()
@@ -38,7 +44,7 @@ func `live search keeps the preview visible when newer results arrive`(
     model.togglePreview(id)
     await previewer.wait()
     host.layoutSubtreeIfNeeded()
-    if !arriveWhileLoading {
+    if arriveWhileLoading == false {
         await previewer.resume()
         await model.waitForPreview()
         try await expectVisiblePreview(body, in: window)
@@ -52,7 +58,9 @@ func `live search keeps the preview visible when newer results arrive`(
                     uidValidity: id.uidValidity,
                     uid: uid,
                 ),
-                accountName: "Fixture", subject: "Newer result", sender: "Fixture",
+                accountName: "Fixture",
+                subject: "Newer result",
+                sender: "Fixture",
                 date: Date(timeIntervalSince1970: Double(uid)),
                 messageID: nil,
             )
@@ -70,8 +78,13 @@ func `live search keeps the preview visible when newer results arrive`(
     window.contentView = nil
 }
 
-@MainActor private func expectVisiblePreview(
-    _ body: String, in window: NSWindow, sourceLocation: SourceLocation = #_sourceLocation,
+// swiftlint:enable function_body_length
+
+@MainActor
+private func expectVisiblePreview(
+    _ body: String,
+    in window: NSWindow,
+    sourceLocation: SourceLocation = #_sourceLocation,
 ) async throws {
     let host = try #require(window.contentView, sourceLocation: sourceLocation)
     let deadline = ContinuousClock.now + .seconds(5)
@@ -103,6 +116,7 @@ func `live search keeps the preview visible when newer results arrive`(
     }
 }
 
-@MainActor private func views<View: NSView>(of type: View.Type, in view: NSView) -> [View] {
+@MainActor
+private func views<View: NSView>(of type: View.Type, in view: NSView) -> [View] {
     (view as? View).map { [$0] } ?? view.subviews.flatMap { views(of: type, in: $0) }
 }

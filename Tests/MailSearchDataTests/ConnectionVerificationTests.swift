@@ -12,7 +12,8 @@ func `connection verification only authenticates and disconnects`(mode: String) 
     do {
         try await client.verify(
             server: IMAPServer(host: "127.0.0.1", port: fixture.port, transportSecurity: .plainText),
-            username: "fixture", password: "fixture",
+            username: "fixture",
+            password: "fixture",
         )
     } catch { failure = error as? SearchFailure; #expect(failure != nil) }
     #expect(failure == (["auth", "plain-reject"].contains(mode) ? .authentication : nil))
@@ -20,7 +21,8 @@ func `connection verification only authenticates and disconnects`(mode: String) 
     #expect(commands == [mode.hasPrefix("plain") ? "AUTHENTICATE" : "LOGIN"] + (failure == nil ? ["CAPABILITY"] : []))
 }
 
-@Test func `cancelled verification never opens a connection`() async throws {
+@Test
+func `cancelled verification never opens a connection`() async throws {
     let fixture = try Fixture(mode: "normal")
     let port = fixture.port
     let client = SwiftMailSearchClient(credentials: EmptyCredentials())
@@ -28,7 +30,8 @@ func `connection verification only authenticates and disconnects`(mode: String) 
         unsafe withUnsafeCurrentTask { unsafe $0?.cancel() }
         try await client.verify(
             server: IMAPServer(host: "127.0.0.1", port: port, transportSecurity: .plainText),
-            username: "fixture", password: "fixture",
+            username: "fixture",
+            password: "fixture",
         )
     }
     await #expect(throws: CancellationError.self) { try await task.value }

@@ -3,6 +3,8 @@ import MailSearchDomain
 import SwiftMail
 import Testing
 
+// MARK: - EmptyCredentials
+
 actor EmptyCredentials: CredentialStore {
     private(set) var passwordReads = 0
 
@@ -19,14 +21,15 @@ actor EmptyCredentials: CredentialStore {
         return nil
     }
 
-    func save(password _: String, for _: String) {}
+    func save(password _: String, for _: String) {
+        // This fixture has no persistent credentials.
+    }
 }
+
+// MARK: - Updates
 
 actor Updates {
     var values: [SearchUpdate] = []
-    func add(_ value: SearchUpdate) {
-        values.append(value)
-    }
 
     var rows: [SearchResult] {
         values.flatMap { value -> [SearchResult] in
@@ -36,13 +39,16 @@ actor Updates {
             return []
         }
     }
+
+    func add(_ value: SearchUpdate) {
+        values.append(value)
+    }
 }
 
+// MARK: - Fixture
+
 final class Fixture {
-    let process = Process()
-    private let terminated = DispatchSemaphore(value: 0)
-    let directory: URL
-    let port: Int
+    // MARK: Lifecycle
 
     init(mode: String, certificate: String? = nil) throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -72,6 +78,12 @@ final class Fixture {
         try? FileManager.default.removeItem(at: directory)
     }
 
+    // MARK: Internal
+
+    let process: Process = .init()
+    let directory: URL
+    let port: Int
+
     func commands() throws -> [String] {
         try JSONDecoder().decode(
             [String].self,
@@ -81,12 +93,18 @@ final class Fixture {
 
     func waitFor(_ event: String) async throws {
         let deadline = ContinuousClock.now.advanced(by: .seconds(20))
-        while !FileManager.default.fileExists(atPath: directory.appendingPathComponent(event).path) {
+        while FileManager.default.fileExists(atPath: directory.appendingPathComponent(event).path) == false {
             try #require(ContinuousClock.now < deadline, "Fixture did not report \(event)")
             try await Task.sleep(for: .milliseconds(10))
         }
     }
+
+    // MARK: Private
+
+    private let terminated: DispatchSemaphore = .init(value: 0)
 }
+
+// MARK: - BatchGate
 
 actor BatchGate {
     var started = false
@@ -95,10 +113,13 @@ actor BatchGate {
     var batches = 0
 
     func receive(_ update: SearchUpdate) async {
-        guard case .batch = update else { return }
+        guard case .batch = update else {
+            return
+        }
+
         batches += 1
-        await withCheckedContinuation {
-            release = $0
+        await withCheckedContinuation { continuation in
+            release = continuation
             started = true
             waiter?.resume()
             waiter = nil

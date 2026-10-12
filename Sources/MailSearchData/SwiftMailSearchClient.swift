@@ -3,17 +3,22 @@ import Logging
 import MailSearchDomain
 import SwiftMail
 
+// swiftlint:disable:next type_body_length - One owner coordinates the bounded search lifecycle and cancellation.
 public struct SwiftMailSearchClient: MailSearchClient {
-    private let credentials: any CredentialStore
-    private static let silenceLogs: Void = LoggingSystem.bootstrap { _ in SwiftLogNoOpLogHandler() }
+    // MARK: Lifecycle
 
     public init(credentials: any CredentialStore) {
         _ = Self.silenceLogs
         self.credentials = credentials
     }
 
+    // MARK: Public
+
+    @preconcurrency
     public func search(
-        account: MailAccount, connection: ConnectionSettings, query: SearchQuery,
+        account: MailAccount,
+        connection: ConnectionSettings,
+        query: SearchQuery,
         receive: @escaping @Sendable (SearchUpdate) async -> Void,
     ) async throws -> AccountOutcome {
         await receive(.progress("Reading the saved password…"))
@@ -29,37 +34,89 @@ public struct SwiftMailSearchClient: MailSearchClient {
         )
     }
 
+    // MARK: Internal
+
+    // swiftlint:disable no_magic_numbers - Explicit response, body, attribute and literal byte budgets.
+    static func server(connection: ConnectionSettings) throws -> IMAPServer {
+        guard connection.isValid else {
+            throw SearchFailure.settings
+        }
+        guard connection.security == .tls else {
+            throw SearchFailure.unsupportedTransport
+        }
+
+        return IMAPServer(
+            host: connection.host,
+            port: connection.port,
+            transportSecurity: .implicitTLS,
+            responseBufferLimit: 1_048_576,
+            parserLimits: IMAPParserLimits(bodySizeLimit: 65_536, messageAttributeLimit: 32, literalSizeLimit: 4_096),
+        )
+    }
+
+    // swiftlint:enable no_magic_numbers
+
+    static func validate(_ location: MessageLocation) throws {
+        guard location.uid > 0, location.uidValidity > 0,
+              location.mailbox.isEmpty == false,
+              location.mailbox == location.mailbox.trimmingCharacters(in: .whitespacesAndNewlines),
+              location.mailbox.contains("\u{FFFD}") == false
+        else {
+            throw SearchFailure.staleMessage
+        }
+    }
+
+    static func failure(_ error: any Error) -> SearchFailure {
+        if let failure = error as? SearchFailure {
+            return failure
+        }
+        guard let imapError = error as? IMAPError else {
+            return .connection
+        }
+
+        switch imapError {
+        case .authFailed,
+             .loginFailed,
+             .unsupportedAuthMechanism:
+            return .authentication
+
+        case .timeout:
+            return .timeout
+
+        case .connectionFailed,
+             .greetingFailed:
+            return .connection
+
+        case .searchCharsetNotSupported:
+            return .charset
+
+        default:
+            return .server
+        }
+    }
+
     func session(accountID: String, connection: ConnectionSettings) async throws -> (IMAPServer, String) {
-        guard connection.isValid else { throw SearchFailure.settings }
-        guard connection.security == .tls else { throw SearchFailure.unsupportedTransport }
+        guard connection.isValid else {
+            throw SearchFailure.settings
+        }
+        guard connection.security == .tls else {
+            throw SearchFailure.unsupportedTransport
+        }
         guard let password = try await credentials.password(for: connection.credentialKey(accountID: accountID)) else {
             throw SearchFailure.credentials
         }
+
         try Task.checkCancellation()
         return try (Self.server(connection: connection), password)
     }
 
-    static func server(connection: ConnectionSettings) throws -> IMAPServer {
-        guard connection.isValid else { throw SearchFailure.settings }
-        guard connection.security == .tls else { throw SearchFailure.unsupportedTransport }
-        return IMAPServer(
-            host: connection.host, port: connection.port,
-            transportSecurity: .implicitTLS,
-            responseBufferLimit: 1_048_576,
-            parserLimits: IMAPParserLimits(bodySizeLimit: 65536, messageAttributeLimit: 32, literalSizeLimit: 4096),
-        )
-    }
-
-    static func validate(_ location: MessageLocation) throws {
-        guard location.uid > 0, location.uidValidity > 0,
-              !location.mailbox.isEmpty,
-              location.mailbox == location.mailbox.trimmingCharacters(in: .whitespacesAndNewlines),
-              !location.mailbox.contains("\u{FFFD}") else { throw SearchFailure.staleMessage }
-    }
-
     // swiftlint:disable:next function_parameter_count - Internal seam for the loopback fixture.
     func search(
-        server: IMAPServer, account: MailAccount, username: String, password: String, query: SearchQuery,
+        server: IMAPServer,
+        account: MailAccount,
+        username: String,
+        password: String,
+        query: SearchQuery,
         iCloud: Bool = false,
         receive: @escaping @Sendable (SearchUpdate) async -> Void,
     ) async throws -> AccountOutcome {
@@ -85,10 +142,19 @@ public struct SwiftMailSearchClient: MailSearchClient {
         }
     }
 
-    // swiftlint:disable:next cyclomatic_complexity - Keep the bounded, sequential mailbox flow together.
+    // MARK: Private
+
+    private static let silenceLogs: Void = LoggingSystem.bootstrap { _ in SwiftLogNoOpLogHandler() }
+
+    private let credentials: any CredentialStore
+
+    // swiftlint:disable:next cyclomatic_complexity function_body_length - Sequential mailbox protocol and cleanup.
     private func searchMailboxes(
-        server: IMAPServer, account: MailAccount, query: SearchQuery, iCloud: Bool,
-        receive: @escaping @Sendable (SearchUpdate) async -> Void,
+        server: IMAPServer,
+        account: MailAccount,
+        query: SearchQuery,
+        iCloud: Bool,
+        receive: @Sendable (SearchUpdate) async -> Void,
     ) async throws -> AccountOutcome {
         await receive(.progress("Listing mailboxes…"))
         let gmail = await server.supportsGmailExtensions
@@ -100,7 +166,7 @@ public struct SwiftMailSearchClient: MailSearchClient {
         var selectable = mailboxes.filter(\.isSelectable)
         if gmail, query.flaggedOnly {
             let starred = selectable.filter { $0.attributes.contains(.flagged) }
-            if !starred.isEmpty {
+            if starred.isEmpty == false {
                 selectable = starred
             }
         }
@@ -128,22 +194,33 @@ public struct SwiftMailSearchClient: MailSearchClient {
             await receive(.progress("Mailbox \(index + 1) of \(selectable.count): \(mailboxDisplayName(mailbox.name))"))
             do {
                 guard mailbox.name == mailbox.name.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !mailbox.name.contains("\u{FFFD}")
+                      mailbox.name.contains("\u{FFFD}") == false
                 else {
                     incomplete = true
                     await receive(
                         .notice(
-                            "Excluded ‘\(mailboxDisplayName(mailbox.name))’: the IMAP library cannot preserve this mailbox name exactly.",
+                            """
+                            Excluded ‘\(mailboxDisplayName(mailbox.name))’: the IMAP library cannot \
+                            preserve this mailbox name exactly.
+                            """,
                         ),
                     )
                     continue
                 }
+
                 let selection = try await server.examineMailbox(mailbox.name)
                 try Task.checkCancellation()
-                guard selection.uidValidity.value > 0 else { throw SearchFailure.uidValidity }
-                guard selection.uidNext.value > 0 else { throw SearchFailure.uidNext }
-                if !selection.isReadOnly {
-                    guard iCloud else { throw SearchFailure.readOnly }
+                guard selection.uidValidity.value > 0 else {
+                    throw SearchFailure.uidValidity
+                }
+                guard selection.uidNext.value > 0 else {
+                    throw SearchFailure.uidNext
+                }
+
+                if selection.isReadOnly == false {
+                    guard iCloud else {
+                        throw SearchFailure.readOnly
+                    }
                 }
                 var start: UInt32 = 1
                 while let range = SearchLimits.window(start: start, uidNext: selection.uidNext.value) {
@@ -154,6 +231,7 @@ public struct SwiftMailSearchClient: MailSearchClient {
                         )
                         return .incomplete
                     }
+
                     windows += 1
                     let matches: UIDSet?
                     if gmail, let phrase = query.gmailPhrase {
@@ -180,15 +258,20 @@ public struct SwiftMailSearchClient: MailSearchClient {
                             await receive(.notice("Incomplete: showing the first 2,000 matches for this account."))
                             return .incomplete
                         }
+
                         let requested = Array(ids.dropFirst(offset).prefix(count))
                         let metadata = try await server.fetchMessageInfosBulk(
-                            using: UIDSet(requested), options: [.internalDate, .flags],
+                            using: UIDSet(requested),
+                            options: [.internalDate, .flags],
                             headerFields: ["SUBJECT", "FROM", "DATE", "MESSAGE-ID"],
                         )
                         try Task.checkCancellation()
                         let requestedIDs = Set(requested)
                         let batch = metadata.compactMap { info -> SearchResult? in
-                            guard let uid = info.uid, requestedIDs.contains(uid) else { return nil }
+                            guard let uid = info.uid, requestedIDs.contains(uid) else {
+                                return nil
+                            }
+
                             return SearchResult(
                                 id: MessageLocation(
                                     accountID: account.id,
@@ -196,21 +279,28 @@ public struct SwiftMailSearchClient: MailSearchClient {
                                     uidValidity: selection.uidValidity.value,
                                     uid: uid.value,
                                 ),
-                                accountName: account.name, subject: info.subject ?? "(No subject)",
-                                sender: info.from ?? "(Unknown sender)", date: info.date ?? info.internalDate,
-                                messageID: info.messageId?.description, isFlagged: info.flags.contains(.flagged),
+                                accountName: account.name,
+                                subject: info.subject ?? "(No subject)",
+                                sender: info.from ?? "(Unknown sender)",
+                                date: info.date ?? info.internalDate,
+                                // swiftformat:disable:next acronyms
+                                messageID: info.messageId?.description,
+                                isFlagged: info.flags.contains(.flagged),
                             )
                         }
                         if Set(batch.map(\.id.uid)).count != requested.count {
                             incomplete = true
                             await receive(
                                 .notice(
-                                    "\(mailboxDisplayName(mailbox.name)): some matching messages disappeared or returned no metadata.",
+                                    """
+                                    \(mailboxDisplayName(mailbox.name)): some matching messages \
+                                    disappeared or returned no metadata.
+                                    """,
                                 ),
                             )
                         }
                         resultCount += batch.count
-                        if !batch.isEmpty {
+                        if batch.isEmpty == false {
                             await receive(.batch(batch))
                         }
                         if count < min(SearchLimits.metadataBatch, ids.count - offset) {
@@ -233,19 +323,5 @@ public struct SwiftMailSearchClient: MailSearchClient {
             }
         }
         return incomplete ? .incomplete : .complete
-    }
-
-    static func failure(_ error: any Error) -> SearchFailure {
-        if let failure = error as? SearchFailure {
-            return failure
-        }
-        guard let error = error as? IMAPError else { return .connection }
-        switch error {
-        case .loginFailed, .authFailed, .unsupportedAuthMechanism: return .authentication
-        case .timeout: return .timeout
-        case .connectionFailed, .greetingFailed: return .connection
-        case .searchCharsetNotSupported: return .charset
-        default: return .server
-        }
     }
 }

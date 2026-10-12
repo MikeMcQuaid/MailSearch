@@ -39,7 +39,7 @@ assert set(re.findall(r"server\.(\w+)\(", preview)) <= {
     "connect", "loginWithPassword", "disconnect", "examineMailbox", "fetchMessageInfosBulk", "fetchPart"
 }
 assert "offset: bytes.count" in preview and "count: count" in preview
-assert "let limit = 32 * 1024" in preview
+assert "let limit = 32_768" in preview
 assert "WKWebView" not in preview and "NSAttributedString" not in preview
 verification = Path("Sources/MailSearchData/SwiftMailConnectionVerifier.swift").read_text()
 assert set(re.findall(r"server\.(\w+)\(", verification)) <= {"connect", "loginWithPassword", "disconnect"}

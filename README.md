@@ -102,7 +102,7 @@ See [SEARCH.md](SEARCH.md) for matching, exclusions and explicit limits.
 - `script/install`: build, then copy the app to /Applications
 - `script/test`: unit, native view and loopback IMAP integration tests
 - `script/style [--fix]`: Swift and shell style, plus workflow checks
-- `script/analyze`: dependency boundaries and Periphery dead-code analysis
+- `script/analyze`: dependency boundaries, SwiftLint analysis and Periphery
 - `script/zip`: archive the built app with its bundled licence notices
 - `script/package`: sign and notarise a distribution using release secrets
 - `script/version`: derive the version and build number from Git
@@ -113,8 +113,9 @@ for a debug app build. The nearest reachable version tag names the build,
 or `0.0.0` before the first release; the build number counts `main` commits.
 
 CI runs style, tests and analysis independently, including Address and
-Thread Sanitizer tests. Compiler warnings in app and test targets are
-errors. Tests use synthetic data and never access real mail or credentials.
+Thread Sanitizer tests in separate build directories. Both sanitizers halt on
+the first finding and block CI on failure. Compiler warnings in app and
+test targets are errors. Tests use synthetic data and never access real mail or credentials.
 CI caches dependency downloads and signs and notarises the app when the
 signing secrets are available, uploading the app ZIP.
 Pushes that change release files also test signing, notarisation and app

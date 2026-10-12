@@ -329,17 +329,38 @@ untrusted roots, expired certificates, wrong hostnames, stalled handshakes
 and Gmail/iCloud search behaviour over TLS. The stalled-handshake fixture confirms
 TLS has started before cancellation and measures socket closure on the server,
 excluding test-task scheduling delays from the connection deadline assertion.
-`script/style` applies consistent SwiftFormat, SwiftLint, ShellCheck and shfmt rules.
+`script/style` enables every SwiftFormat and SwiftLint lint rule, then documents
+conflicts in the configuration and narrow domain exceptions beside the code.
+MinMaxCal's configured trailing commas and modifier order take precedence over
+AgentIDE's disabled checks. AgentIDE's cohesive helper files, internal defaults
+and lifecycle ordering are retained where splitting them would obscure ownership.
+Tests allow literal fixture numbers. Protocol limits, Apple-event bridging and
+native layout values have explicitly scoped exceptions; there is no baseline.
+ShellCheck, shfmt, actionlint and zizmor also run.
 `script/analyze` checks dependency/import and read-only API boundaries,
-then builds with warnings as errors and runs Periphery on the compiler
-index. The exported package description avoids a nested manifest sandbox
-inside Sandvault. Analysis uses SwiftPM's native build engine to regenerate
-the index for all app and test targets, with manifest caching disabled so
-new dependency extension files are included. The installed Swift Build engine
-left stale index entries after incremental builds. The native engine is
+then builds with warnings as errors and runs SwiftLint analysis and Periphery.
+Both passes run even if one fails, and either failure makes analysis fail.
+The build uses a freshly removed `.build/analyze` directory, captures verbose
+compiler invocations and exports the package description, avoiding Periphery's
+nested manifest sandbox inside Sandvault. SwiftLint's skipped-file diagnostics
+are failures, not a clean result. Analysis uses SwiftPM's native build engine
+to regenerate the index for all app and test targets, with manifest caching
+disabled so new dependency extension files are included. The installed Swift
+Build engine left stale index entries after incremental builds. The native engine is
 deprecated but available in this toolchain; release builds and tests use
 the default engine. Generated SwiftMail sources are treated as an external
 dependency; application and test targets must have no analyser findings.
+Sandbox app, test and analysis builds run at nice level 10 with at most six jobs.
+Dependency preparation resolves and patches the selected scratch directory,
+including the isolated Address and Thread Sanitizer directories. CI keeps
+per-target logs and JUnit reports, uploads failure diagnostics and fails if any
+target or sanitizer fails. Neither sanitizer uses suppressions or skipped tests.
+Address Sanitizer retains Release: the pinned SwiftSoup HTML parser exhausts a
+concurrency worker's stack with Debug instrumentation, even on the small preview
+fixture. Normal tests and Thread Sanitizer remain Debug. See `vendor/README.md`.
+SwiftLint analysis currently hits Xcode 27 macro-plugin failures and a SourceKit
+crash in the sandbox. This fails the analysis gate while Periphery still runs;
+no missing or partial analysis is reported as clean.
 Host acceptance checks are tracked separately in `HOST-CHECKS.md`.
 
 The public repository follows the reference apps' README structure. Detailed

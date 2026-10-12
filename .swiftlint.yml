@@ -1,15 +1,91 @@
-included:
-  - Sources
-  - App
-  - Tests
-  - script/support
-strict: true
+# Start with every rule. Exclusions document tool conflicts or the shared
+# app conventions below; domain exceptions are scoped beside the code.
+opt_in_rules:
+  - all
+analyzer_rules:
+  - capture_variable
+  - unused_declaration
+  - unused_import
+# explicit_self conflicts with SwiftFormat's redundantSelf rule.
+
 disabled_rules:
-  - trailing_comma # SwiftFormat uses trailing commas.
-  - opening_brace # SwiftFormat owns wrapping.
-  - identifier_name # IMAP uses UID and protocol ids.
-  - type_body_length # Keep small adapters together.
-  - function_body_length # Sequential protocol operations read as one flow.
-line_length: 140
-type_name:
-  min_length: 3
+  # contrasted_opening_brace contradicts opening_brace.
+  - contrasted_opening_brace
+  # wrapMultilineStatementBraces places multiline condition braces on a new line.
+  - opening_brace
+  # Related private helpers belong beside their owner (as in AgentIDE).
+  - one_declaration_per_file
+  - file_types_order
+  # Domain states and failures follow lifecycle and protocol order.
+  - sorted_enum_cases
+  # Internal fixture and adapter defaults avoid repetitive overloads.
+  - discouraged_default_parameter
+  # SwiftPM requires `package`; follow AgentIDE rather than adding k prefixes.
+  - prefixed_toplevel_constant
+  # explicit_acl and explicit_top_level_acl add the `internal` keyword
+  # that SwiftFormat's redundantInternal rule removes.
+  - explicit_acl
+  - explicit_top_level_acl
+  # explicit_enum_raw_value asks for the raw values SwiftFormat's
+  # redundantRawValues rule removes.
+  - explicit_enum_raw_value
+  # explicit_type_interface adds the annotations that SwiftFormat's
+  # redundantType rule removes.
+  - explicit_type_interface
+  # indentation_width rejects the five-space alignment SwiftFormat's
+  # wrapSwitchCases rule gives wrapped case patterns.
+  - indentation_width
+  # no_extension_access_modifier contradicts extension_access_modifier,
+  # which matches SwiftFormat's extensionAccessControl rule.
+  - no_extension_access_modifier
+  # required_deinit forces an empty `deinit {}`, which no_empty_block
+  # rejects.
+  - required_deinit
+  # type_contents_order contradicts the order SwiftFormat's
+  # organizeDeclarations rule produces.
+  - type_contents_order
+
+excluded:
+  - .build
+  - .test-scratch
+  - .DerivedData
+  - MailSearch.xcodeproj
+  - vendor/SwiftMail/Sources
+
+file_header:
+  forbidden_pattern: "^//\\s*(Created by|Copyright)"
+
+identifier_name:
+  excluded:
+    - id
+    - to
+    - at
+
+# `public init() {}` on dependency-free adapters and `= {}` default
+# callbacks are intentionally empty.
+no_empty_block:
+  disabled_block_types:
+    - initializer_bodies
+    - closure_blocks
+
+number_separator:
+  minimum_length: 4
+
+trailing_comma:
+  mandatory_comma: true
+
+# Trailing closures after multiline calls fight SwiftFormat's wrapping,
+# so only the `foo { }` shape is required.
+trailing_closure:
+  only_single_muted_parameter: true
+
+# Property wrappers stay beside stored properties, as SwiftFormat requires.
+attributes:
+  attributes_with_arguments_always_on_line_above: false
+  always_on_line_above:
+    - "@MainActor"
+
+file_name:
+  # These files collect cohesive domain values, ports and test support.
+  excluded: [Account.swift, Search.swift, Ports.swift, TestSupport.swift, MailAccessTests.swift,
+    SwiftMailConnectionVerifier.swift, SwiftMailMessageFlagger.swift, SwiftMailMessagePreviewer.swift]

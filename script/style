@@ -1,9 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-scripts=(script/analyze script/bootstrap script/build script/install script/package script/prepare script/style script/test script/version script/zip Tests/ScriptTests.sh)
+scripts=(script/analyze script/bootstrap script/build script/install script/package script/prepare script/style script/test script/version script/zip Tests/*.sh)
 if [[ "${1:-}" == --fix ]]; then
   swiftformat Sources App Tests script/support Package.swift vendor/SwiftMail/Package.swift
+  swiftlint lint --fix --quiet
   shfmt -w -i 2 "${scripts[@]}"
 fi
 swiftformat Sources App Tests script/support Package.swift vendor/SwiftMail/Package.swift --lint

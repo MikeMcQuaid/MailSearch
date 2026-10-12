@@ -1,7 +1,25 @@
+# Every rule is enabled; `--enable all` cannot be narrowed here, so rule
+# disagreements are disabled per line with a reason, never in this file.
+# The options only pick sides where a rule could otherwise disagree with
+# SwiftLint. The inline acronyms exception preserves SwiftMail’s messageId API.
+--enable all
 --swiftversion 6.4
---indent 4
+--exclude .build,.test-scratch,.DerivedData,MailSearch.xcodeproj,vendor/SwiftMail/Sources
 --maxwidth 120
 --wraparguments before-first
 --wrapparameters before-first
---commas always
+--wrapcollections before-first
+--funcattributes prev-line
+--typeattributes prev-line
+# Group digits from four up so numberFormatting agrees with SwiftLint's
+# number_separator.
+--decimalgrouping 3,4
+--trailingcommas always
+--extensionacl on-extension
 --self remove
+# SwiftLint's modifier_order wants `nonisolated` ahead of access control.
+--modifierorder nonisolated,override,private,fileprivate,internal,package,public,open,private(set),fileprivate(set),internal(set),package(set),public(set),dynamic,mutating,nonmutating,lazy,final,required,convenience,static,class
+# Fully wrap lists so both multiline argument rules agree.
+--allow-partial-wrapping false
+--complex-attributes prev-line
+--non-complex-attributes Environment

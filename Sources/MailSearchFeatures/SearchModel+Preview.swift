@@ -2,12 +2,14 @@ import Foundation
 import MailSearchDomain
 
 public extension SearchModel {
+    /// Dismisses a preview when keyboard selection moves elsewhere.
     func selectionDidChange() {
         if expanded != selection {
             cancelPreview()
         }
     }
 
+    /// Expands or collapses the preview at this exact message location.
     func togglePreview(_ id: MessageLocation) {
         if expanded == id {
             cancelPreview()
@@ -17,6 +19,8 @@ public extension SearchModel {
         }
     }
 
+    // swiftlint:disable function_body_length - Sequential operation and cleanup.
+    /// Loads the selected preview, rejecting cancelled or replaced replies.
     func loadPreview() {
         let previous = previewTask
         previous?.cancel()
@@ -30,6 +34,7 @@ public extension SearchModel {
             isPreviewing = false
             return
         }
+
         let key = MailCacheKey.preview(
             connectionKey: connection.credentialKey(accountID: result.id.accountID),
             location: result.id,
@@ -42,7 +47,10 @@ public extension SearchModel {
         isPreviewing = true
         previewTask = Task {
             await previous?.value
-            guard !Task.isCancelled, previewGeneration == token else { return }
+            guard Task.isCancelled == false, previewGeneration == token else {
+                return
+            }
+
             defer {
                 if previewGeneration == token {
                     isPreviewing = false; previewTask = nil
@@ -50,22 +58,32 @@ public extension SearchModel {
             }
             do {
                 let value = try await previewer.preview(result.id, connection: connection)
-                guard !Task.isCancelled, previewGeneration == token else { return }
+                guard Task.isCancelled == false, previewGeneration == token else {
+                    return
+                }
+
                 preview = value
                 if cacheToken == cacheGeneration {
                     previewCache.insert(
                         value,
                         for: key,
+                        // swiftlint:disable:next no_magic_numbers - Preview identity overhead.
                         bytes: value.text.utf8.count + 256,
                     )
                 }
             } catch {
-                guard !Task.isCancelled, previewGeneration == token else { return }
+                guard Task.isCancelled == false, previewGeneration == token else {
+                    return
+                }
+
                 previewError = (error as? SearchFailure ?? .previewUnavailable).rawValue
             }
         }
     }
 
+    // swiftlint:enable function_body_length
+
+    /// Cancels the active preview and rejects its pending response.
     func cancelPreview() {
         previewGeneration = UUID()
         expanded = nil

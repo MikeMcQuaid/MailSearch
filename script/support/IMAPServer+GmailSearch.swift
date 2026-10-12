@@ -3,14 +3,20 @@ import NIOCore
 import NIOIMAPCore
 
 public extension IMAPServer {
+    /// Searches a bounded UID range with a literal Gmail phrase.
     func searchGmail(_ query: String, in range: ClosedRange<UInt32>, flaggedOnly: Bool) async throws -> UIDSet {
         try await ensurePrimaryConnectionAuthenticated()
-        guard supportsGmailExtensions else { throw IMAPError.commandNotSupported("X-GM-EXT-1") }
+        guard supportsGmailExtensions else {
+            throw IMAPError.commandNotSupported("X-GM-EXT-1")
+        }
+
         return try await executeCommand(GmailSearchCommand(query: query, range: range, flaggedOnly: flaggedOnly))
     }
 }
 
-private struct GmailSearchCommand: IMAPTaggedCommand, Sendable {
+// MARK: - GmailSearchCommand
+
+private struct GmailSearchCommand: IMAPTaggedCommand {
     typealias ResultType = UIDSet
     typealias HandlerType = SearchHandler<UID>
 
@@ -20,8 +26,9 @@ private struct GmailSearchCommand: IMAPTaggedCommand, Sendable {
     let timeoutSeconds = 60
 
     func validate() throws {
-        guard range.lowerBound > 0, !query.isEmpty, query.utf8.count <= 1026,
-              !query.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+        // swiftlint:disable:next no_magic_numbers - The 1 KiB query gains two surrounding quotes.
+        guard range.lowerBound > 0, query.isEmpty == false, query.utf8.count <= 1_026,
+              query.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) == false
         else {
             throw IMAPError.invalidArgument("Invalid Gmail search")
         }
@@ -32,7 +39,8 @@ private struct GmailSearchCommand: IMAPTaggedCommand, Sendable {
         let scope = "CHARSET UTF-8 UID \(range.lowerBound):\(range.upperBound) "
             + (flaggedOnly ? "FLAGGED " : "") + "X-GM-RAW "
         return TaggedCommand(tag: tag, command: .custom(name: "UID SEARCH", payloads: [
-            .verbatim(ByteBuffer(string: scope)), .literal(ByteBuffer(string: query)),
+            .verbatim(ByteBuffer(string: scope)),
+            .literal(ByteBuffer(string: query)),
         ]))
     }
 }

@@ -353,3 +353,27 @@ Still needs the host user's GUI session and saved credentials: submit a Gmail
 and iCloud search, expand a preview during the search and verify an explicit
 flag/unflag. Confirm both providers connect with their existing TLS port 993
 settings. No real mail or credentials were accessed by automated checks.
+
+## Policy alignment checks (12 October 2026)
+
+- Style, shell regressions, all 76 normal tests and the sandboxed Release app
+  build pass. The app retains App Sandbox. No real mail or credentials were used.
+- One repeated normal run exited during the existing packaging shell checks,
+  after the build-script fixtures and before Swift tests, without a diagnostic.
+  The final complete normal run and all six sanitizer invocations passed those
+  checks. The cause of that intermittent shell failure remains unidentified.
+- All 76 tests pass with Release Address Sanitizer and Debug Thread Sanitizer,
+  using separate scratch directories and `halt_on_error=1`. Logs and per-target
+  JUnit reports are in `.build/asan-*` and `.build/tsan-*`.
+- Debug Address Sanitizer still fails in SwiftSoup’s HTML parser on the small
+  synthetic preview fixture. LLDB confirms stack exhaustion; the existing
+  Release exception and recheck procedure are documented in `vendor/README.md`.
+- A fresh native analysis build compiles all 45 source files across the seven
+  application and test targets. The exported package description and compiler
+  log agree, and Periphery reports no unused code from the fresh index.
+- Full SwiftLint analysis fails with Xcode 27 macro-plugin malformed responses
+  and a SourceKit crash. `script/analyze` returns failure and still runs Periphery.
+  The host/CI analysis policy is installed, but successful analysis outside this
+  sandbox remains unverified. Preserve `.build/analyze-*.log` when reproducing.
+- Live account interaction, VoiceOver and the menu bar remain host GUI checks.
+  This policy change did not access accounts or launch the app.
