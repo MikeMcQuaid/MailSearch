@@ -1,7 +1,5 @@
 # ✉️ MailSearch
 
-<img src="App/Icons/AppIcon.icon/Assets/MailSearch.png" alt="MailSearch app icon" width="128">
-
 MailSearch is a native macOS menu bar app for searching email directly
 on IMAP servers. It discovers accounts from Mail.app, shows results from
 each server as they arrive and lets you preview, flag and unflag messages.
