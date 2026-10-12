@@ -1,6 +1,5 @@
 import Foundation
 import MailSearchDomain
-import SwiftMail
 import Testing
 
 // MARK: - EmptyCredentials

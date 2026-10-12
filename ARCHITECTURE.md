@@ -358,9 +358,11 @@ target or sanitizer fails. Neither sanitizer uses suppressions or skipped tests.
 Address Sanitizer retains Release: the pinned SwiftSoup HTML parser exhausts a
 concurrency worker's stack with Debug instrumentation, even on the small preview
 fixture. Normal tests and Thread Sanitizer remain Debug. See `vendor/README.md`.
-SwiftLint analysis currently hits Xcode 27 macro-plugin failures and a SourceKit
-crash in the sandbox. This fails the analysis gate while Periphery still runs;
-no missing or partial analysis is reported as clean.
+The analysis build loads Xcode 27's Testing macros through its external plugin
+server: the in-process server crashes inside SourceKit. The real compiler log
+records this setting for SwiftLint, with the same macros and no excluded tests.
+Sandbox builds also pass the frontend sandbox flag explicitly for SourceKit's
+macro subprocesses. Missing or partial analysis still fails the gate.
 Host acceptance checks are tracked separately in `HOST-CHECKS.md`.
 
 The public repository follows the reference apps' README structure. Detailed

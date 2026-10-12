@@ -1,4 +1,3 @@
-import Foundation
 @testable import MailSearchData
 import MailSearchDomain
 import SwiftMail

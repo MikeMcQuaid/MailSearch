@@ -11,6 +11,7 @@ touch "${scratch}/App/MailSearchApp.swift"
 cp script/analyze "${scratch}/script/"
 printf '#!/bin/bash\nexit 0\n' >"${scratch}/script/prepare"
 printf '#!/bin/bash\nexit 0\n' >"${scratch}/bin/python3"
+printf '#!/bin/bash\necho /toolchain/usr/bin/swiftc\n' >"${scratch}/bin/xcrun"
 cat >"${scratch}/bin/swift" <<'SWIFT'
 #!/bin/bash
 if [[ "$*" == *--show-bin-path* ]]; then
@@ -19,6 +20,10 @@ elif [[ "$*" == *describe* ]]; then
   echo '{}'
 else
   [[ ! -f .build/analyze/stale ]] || exit 98
+  [[ "$*" == *'-Xswiftc -load-resolved-plugin -Xswiftc /toolchain/usr/bin/../lib/swift/host/plugins/testing/libTestingMacros.dylib#/toolchain/usr/bin/swift-plugin-server#TestingMacros'* ]] || exit 97
+  if [[ -n "${SV_SESSION_ID:-}" ]]; then
+    [[ "$*" == *'-Xswiftc -Xfrontend -Xswiftc -disable-sandbox'* ]] || exit 96
+  fi
   echo 'swiftc -module-name MailSearchAppSources App/MailSearchApp.swift'
   exit "${ANALYSIS_BUILD_STATUS}"
 fi
