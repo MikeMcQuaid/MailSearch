@@ -24,9 +24,10 @@ domain exceptions scoped to the relevant declaration. Do not add baselines.
 `script/analyze` needs a complete fresh build; missing tools, failed builds and
 skipped SwiftLint files are failures. Logs are saved as `.build/analyze-*.log`.
 Both analyser passes run independently after a successful build. SwiftLint must
-report completion for every application and test source file. The installed
-Xcode 27 / Swift 6.4 macro plugins can fail during SourceKit analysis; that is an
-unresolved tool failure, never a successful check.
+report completion for every application and test source file. The analysis build
+runs Xcode 27's Testing macros in its external plugin server to avoid a SourceKit
+crash. Keep this compiler setting in the build itself so the log remains faithful
+to the compilation. Macro failures must still fail the check.
 
 Address Sanitizer retains Release because pinned SwiftSoup exhausts a concurrency
 worker's stack under Debug instrumentation. See [vendor/README.md](vendor/README.md).

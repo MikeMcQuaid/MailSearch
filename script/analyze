@@ -5,13 +5,18 @@ python3 script/check-boundaries.py
 # A fresh native build indexes every app and test source, including deletions.
 rm -rf .build/analyze
 script/prepare .build/analyze
+swift_bin="$(dirname "$(xcrun --find swiftc)")"
+# Xcode 27's in-process Testing macro server crashes inside SourceKit.
 flags=(--disable-sandbox --build-system native --disable-build-manifest-caching
-  --enable-index-store --build-tests --scratch-path .build/analyze -v)
+  --enable-index-store --build-tests --scratch-path .build/analyze -v
+  -Xswiftc -load-resolved-plugin
+  -Xswiftc "${swift_bin}/../lib/swift/host/plugins/testing/libTestingMacros.dylib#${swift_bin}/swift-plugin-server#TestingMacros")
 builder=(swift)
 if [[ -n "${SV_SESSION_ID:-}" ]]; then
   export SWIFTPM_DISABLE_SANDBOX=1
   export SWIFT_BUILD_USE_SANDBOX=0
-  flags+=(--jobs 6)
+  # SourceKit needs the frontend flag to avoid nesting the macro sandbox.
+  flags+=(--jobs 6 -Xswiftc -Xfrontend -Xswiftc -disable-sandbox)
   builder=(nice -n 10 swift)
 fi
 mkdir -p .build

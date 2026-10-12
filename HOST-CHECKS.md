@@ -371,9 +371,27 @@ settings. No real mail or credentials were accessed by automated checks.
 - A fresh native analysis build compiles all 45 source files across the seven
   application and test targets. The exported package description and compiler
   log agree, and Periphery reports no unused code from the fresh index.
-- Full SwiftLint analysis fails with Xcode 27 macro-plugin malformed responses
-  and a SourceKit crash. `script/analyze` returns failure and still runs Periphery.
-  The host/CI analysis policy is installed, but successful analysis outside this
-  sandbox remains unverified. Preserve `.build/analyze-*.log` when reproducing.
+- Initial SwiftLint analysis failed with Xcode 27 macro-plugin malformed responses
+  and a SourceKit crash. `script/analyze` returned failure and still ran Periphery.
+  The follow-up below fixes the macro invocation without skipping analysis.
 - Live account interaction, VoiceOver and the menu bar remain host GUI checks.
   This policy change did not access accounts or launch the app.
+
+## Analysis macro fix (12 October 2026)
+
+- LLDB reproduced the crash in `libSwiftInProcPluginServer` while expanding
+  Testing macros. Loading the same macros through Xcode's external plugin server
+  fixes it; an explicit frontend flag avoids nested macro sandboxes in Sandvault.
+  Both settings are recorded by the real build, without rewriting its log.
+- Regression tests fail without these compiler settings and pass with them on
+  mocked host and sandbox paths. No rules, files or tests were excluded.
+- Fresh sandbox `script/analyze` passes: SwiftLint reports zero violations across
+  all 45 app and test files, and Periphery reports no unused code. The exported
+  package description matches the compiler log for all seven targets; the fresh
+  index contains 1,122 units. Three unused imports exposed by analysis were removed.
+- Style, the Release app build and all 76 normal tests pass. All 76 tests also
+  pass with Release Address Sanitizer and Debug Thread Sanitizer, with separate
+  scratch directories, `halt_on_error=1` and three clean JUnit reports per run.
+- Host/CI execution of this fix remains to be checked; sandbox analysis no longer
+  has an unresolved macro failure. Recheck the external plugin setting after
+  upgrading Xcode.
