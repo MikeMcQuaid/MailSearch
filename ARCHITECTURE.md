@@ -318,6 +318,10 @@ the nearest reachable bare version tag, defaulting to `0.0.0`, and counts
 `origin/main` commits for the build number, falling back to `main` or `HEAD`.
 The generated version settings are shared by scripted and Xcode builds.
 Scripted app builds default to Release, with `XCODE_CONFIGURATION` overrides.
+The app enables dead code stripping, user script sandboxing and generated
+asset and string catalogue symbols. The explicit `arm64` architecture keeps
+app builds limited to Apple silicon. There are no Run Script build phases;
+version generation is a scheme pre-action.
 
 `script/build` creates the sandboxed app. `script/test` runs pure rules,
 model fakes and a loopback-only IMAP fixture, with no Mail or real Keychain

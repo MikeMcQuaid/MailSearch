@@ -14,7 +14,9 @@ func `connection verification only authenticates and disconnects`(mode: String) 
             username: "fixture",
             password: "fixture",
         )
-    } catch { failure = error as? SearchFailure; #expect(failure != nil) }
+    } catch {
+        failure = error as? SearchFailure; #expect(failure != nil)
+    }
     #expect(failure == (["auth", "plain-reject"].contains(mode) ? .authentication : nil))
     let commands = try fixture.commands()
     #expect(commands == [mode.hasPrefix("plain") ? "AUTHENTICATE" : "LOGIN"] + (failure == nil ? ["CAPABILITY"] : []))

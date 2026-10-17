@@ -171,7 +171,9 @@ public final class SearchModel {
     /// Snapshots the query and starts searches for enabled accounts.
     public func submit() {
         let query: SearchQuery
-        do { query = try SearchQuery(queryText, flaggedOnly: flaggedOnly) } catch {
+        do {
+            query = try SearchQuery(queryText, flaggedOnly: flaggedOnly)
+        } catch {
             self.error = SearchFailure.invalidQuery.rawValue
             return
         }
@@ -224,16 +226,15 @@ public final class SearchModel {
         let token = resultGeneration
         flagging = id
         flagNotice = nil
-        let task = Task { try await flagger.setFlag(flagged, for: id, connection: connection) }
+        let task = Task {
+            try await flagger.setFlag(flagged, for: id, connection: connection)
+        }
         flagTask = task
         defer { flagging = nil; flagTask = nil }
         do {
             try await task.value
             clearCaches()
-            guard resultGeneration == token else {
-                return
-            }
-            guard statuses[id.accountID]?.connection == connection,
+            guard resultGeneration == token, statuses[id.accountID]?.connection == connection,
                   settings[id.accountID]?.enabled != false
             else {
                 return

@@ -15,9 +15,10 @@ public enum MailProvider: Sendable {
             self = .iCloud
         } else if host.isEmpty, account.kind == .imap,
                   account.addresses
-                  .contains(where: { address in
-                      address.lowercased().hasSuffix("@gmail.com") || address.lowercased().hasSuffix("@googlemail.com")
-                  })
+                      .contains(where: { address in
+                          address.lowercased().hasSuffix("@gmail.com") || address.lowercased()
+                              .hasSuffix("@googlemail.com")
+                      })
         {
             self = .gmail
         } else {
