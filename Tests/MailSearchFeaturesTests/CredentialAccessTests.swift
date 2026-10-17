@@ -16,7 +16,9 @@ func `verification is bounded and forwards cancellation`() async {
         flagger: Flagger(),
         previewer: Previewer(),
     )
-    let task = Task { try await model.configure(account("a"), connection: testConnection, password: "fixture") }
+    let task = Task {
+        try await model.configure(account("a"), connection: testConnection, password: "fixture")
+    }
     await client.waitFor("verification")
     await #expect(throws: SearchFailure.verificationInProgress) {
         try await model.configure(account("b"), connection: testConnection, password: "fixture")

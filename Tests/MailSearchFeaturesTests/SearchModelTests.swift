@@ -153,7 +153,9 @@ func `late flag completion never changes a new search`() async throws {
     model.submit()
     await model.waitForSearch()
     let id = try #require(model.results.rows.first?.id)
-    let task = Task { await model.toggleFlag(id) }
+    let task = Task {
+        await model.toggleFlag(id)
+    }
     await flagger.wait()
     #expect(model.canFlag(id) == false)
     await model.toggleFlag(id)
@@ -205,7 +207,9 @@ func `cancelling search retains the confirmed flag on retained results`() async 
     model.submit()
     await client.waitFor("qa")
     let id = try #require(model.results.rows.first?.id)
-    let task = Task { await model.toggleFlag(id) }
+    let task = Task {
+        await model.toggleFlag(id)
+    }
     await flagger.wait()
     model.cancel()
     await client.release("qa")

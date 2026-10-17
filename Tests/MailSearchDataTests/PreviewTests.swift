@@ -27,7 +27,9 @@ func `preview fetches bounded text without changing flags`(mode: String) async t
             password: "fixture",
             iCloud: mode == "previewicloud",
         )
-    } catch { failure = error as? SearchFailure; #expect(failure != nil) }
+    } catch {
+        failure = error as? SearchFailure; #expect(failure != nil)
+    }
     let commands = try fixture.commands()
     #expect(commands.contains("SELECT") == false)
     #expect(commands.contains { $0.contains("STORE") } == false)

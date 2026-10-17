@@ -103,7 +103,9 @@ public struct SearchView: View {
                 .help("Show or hide the selected message’s text preview, including while searching")
                 .disabled(model.selectedResult == nil)
                 Button(model.selectedResult?.isFlagged == true ? "Unflag" : "Flag", systemImage: "flag") {
-                    Task { await model.toggleFlag(model.selection) }
+                    Task {
+                        await model.toggleFlag(model.selection)
+                    }
                 }
                 .labelStyle(.iconOnly)
                 .help("Add or remove this message’s server flag without marking it as read")
@@ -119,7 +121,10 @@ public struct SearchView: View {
                         results: model.results.rows,
                         selection: $model.selection,
                         canFlag: model.canFlag,
-                        flag: { id in Task { await model.toggleFlag(id) } },
+                        flag: { id in Task {
+                            await model.toggleFlag(id)
+                        }
+                        },
                         copyText: copyText,
                         preview: model.preview,
                         isPreviewing: model.isPreviewing,

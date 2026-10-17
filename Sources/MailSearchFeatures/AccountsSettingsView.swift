@@ -16,9 +16,12 @@ struct AccountsSettingsView: View {
                 if model.isRefreshing {
                     ProgressView().controlSize(.small).help("Reading account settings from Mail")
                 }
-                Button("Refresh Accounts", systemImage: "arrow.clockwise") { Task { await model.refresh() } }
-                    .help("Refresh account names and settings through Mail’s public interface")
-                    .disabled(model.isRefreshing || model.isSearching || model.isStopping)
+                Button("Refresh Accounts", systemImage: "arrow.clockwise") { Task {
+                    await model.refresh()
+                }
+                }
+                .help("Refresh account names and settings through Mail’s public interface")
+                .disabled(model.isRefreshing || model.isSearching || model.isStopping)
             }
             Text("Discovered from Mail.app. MailSearch uses separate credentials for server searches.")
                 .font(.callout)

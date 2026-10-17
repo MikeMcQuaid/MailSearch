@@ -54,7 +54,9 @@ func `explicit flagging changes only one UID and preserves other flags`(mode: St
             username: "fixture",
             password: "fixture",
         )
-    } catch { failure = error as? SearchFailure; #expect(failure != nil) }
+    } catch {
+        failure = error as? SearchFailure; #expect(failure != nil)
+    }
     let commands = try fixture.commands()
     let stores = commands.filter { $0.hasPrefix("UID STORE") }
     #expect(commands.allSatisfy { command in
