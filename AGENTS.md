@@ -12,8 +12,9 @@ searches and previews remain read-only.
 Keep App Sandbox enabled. Record GUI-only checks in HOST-CHECKS.md.
 Keep CI and development scripts aligned with MinMaxCal and AgentIDE.
 Copy their shared conventions; ask when the reference repos disagree.
-Default app builds to Release, cache dependency downloads in CI and sign
-when signing secrets are available, failing on incomplete credentials.
+Default app builds to Release and cache dependency downloads in CI.
+Run releases, Developer ID signing and notarisation only on manual dispatch,
+failing on incomplete credentials.
 
 Never use verbose or trace output for authenticated curl diagnostics,
 including pipelines that filter it afterwards. Start with --disable

@@ -26,12 +26,10 @@ App builds default to Release. Test, analysis and release jobs cache Swift
 package downloads, keyed by the lockfile and SwiftMail pin. Compiled output,
 signing material and app data are not cached.
 
-Like MinMaxCal, normal CI signs and notarises when
-`DEVELOPER_ID_APPLICATION_CERTIFICATE` is available, then uploads the app ZIP.
-That secret stands for the complete set below:
-partial configuration fails instead of silently skipping signing.
-Fork and Dependabot pull requests use ad hoc signing without secrets.
-CI artefacts do not create a GitHub release.
+Normal CI builds with ad hoc signing and uploads the app ZIP without
+signing secrets or notarisation. CI artefacts do not create a GitHub release.
+Developer ID signing, notarisation and releases run only through the manually
+dispatched Release workflow, which requires the complete set of secrets below.
 
 Run sanitizer checks locally with `script/test --sanitize thread` and
 `script/test --sanitize address --configuration release`. Address Sanitizer
@@ -73,8 +71,8 @@ parser requires 64-column wrapping, whereas OpenSSL also accepts other
 wrapping. A successful OpenSSL check alone does not establish that Apple can
 read the original encoding. Packaging never prints the key. After correcting
 the secret, rerun the failed GitHub Actions jobs. After changing the workflow
-or packaging script, push the change and use the new run: rerunning an older
-job uses its original commit.
+or packaging script, push the change and dispatch a new Release run:
+rerunning an older job uses its original commit.
 
 Never put signing material in the repository. `script/package` disables
 shell tracing and uses a temporary private keychain, deleted on exit.
@@ -84,16 +82,11 @@ keychain's contents or password. Packaging keeps App Sandbox and Hardened
 Runtime, notarises with Apple, staples the ticket and verifies Gatekeeper
 acceptance before recreating the ZIP.
 
-Like AgentIDE and MinMaxCal, the Release workflow also performs a dry run
-on pushes changing release-related files. It creates a local `9999.0.0`
-tag, builds, signs, notarises and launches the packaged app on macOS 26
-and 27. The app ZIP is uploaded as a workflow artefact;
-the tag is never pushed and no release is created.
-
-Human dry runs require all five secrets, so missing or invalid credentials
-fail the workflow before a release is needed. Dependabot pushes build and
-launch with ad hoc signing, skipping notarisation
-because Actions secrets are unavailable.
+The Release workflow also performs a dry run on pushes changing
+`.github/workflows/release.yml`. It creates a local `9999.0.0` tag, builds
+with ad hoc signing and launches the packaged app on macOS 26 and 27.
+The app ZIP is uploaded as a workflow artefact. Dry runs use no signing
+secrets, skip notarisation and never push the tag or create a release.
 
 1. Check that CI passes on `main` and complete the manual checks in
    [HOST-CHECKS.md](HOST-CHECKS.md).
@@ -108,10 +101,9 @@ because Actions secrets are unavailable.
 4. Keep the app ZIP and Git tag available for every distributed version.
    Update the README's installation section when the first release is available.
 
-A successful hosted dry run is needed to verify signing, notarisation and
-both runtime checks with the configured secrets; local checks cannot
-prove them. Dry runs never publish, while manual releases publish
-automatically after those checks pass.
+A hosted Release run is needed to verify signing, notarisation and both
+runtime checks with the configured secrets; local checks cannot prove them.
+Manual releases publish automatically after those checks pass.
 
 ## Archives and licences
 

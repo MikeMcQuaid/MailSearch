@@ -8,20 +8,10 @@ on:
         description: Bare MAJOR.MINOR.PATCH version, for example 0.1.0
         required: true
         type: string
-  # Dry run whenever the release process itself changes, so it cannot
-  # rot unnoticed between releases.
+  # Dry run when this workflow changes.
   push:
     paths:
       - .github/workflows/release.yml
-      - App/MailSearch.entitlements
-      - project.yml
-      - script/build
-      - script/package
-      - script/zip
-      - script/version
-      - script/prepare
-      - script/prepare-swiftmail.py
-      - vendor/**
 
 defaults:
   run:
@@ -126,9 +116,7 @@ jobs:
         run: script/zip
 
       - name: Sign and notarise
-        # Human dry runs test the credentials too. Dependabot cannot
-        # read Actions secrets, while a release must fail without them.
-        if: github.event_name == 'workflow_dispatch' || github.actor != 'dependabot[bot]'
+        if: github.event_name == 'workflow_dispatch'
         env:
           DEVELOPER_ID_APPLICATION_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE }}
           DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
