@@ -372,16 +372,17 @@ Host acceptance checks are tracked separately in `HOST-CHECKS.md`.
 The public repository follows the reference apps' README structure. Detailed
 query behaviour lives in `SEARCH.md`, contribution guidance in
 `CONTRIBUTING.md` and distribution setup in `RELEASING.md`. GitHub Actions
-runs independent style, test and analysis jobs. Normal CI signs and notarises
-when the certificate secret is available, failing on incomplete credentials.
+runs independent style, test and analysis jobs. Normal CI builds and uploads
+an ad hoc signed app ZIP without signing secrets or notarisation.
 Test, analysis and release jobs cache dependency downloads, keyed by the
 lockfile and SwiftMail pin. Build output and signing material are not cached.
-The Release workflow follows MinMaxCal and AgentIDE: a manual run from `main`
-accepts a bare version,
+Developer ID signing, notarisation and releases run only on manual dispatch.
+The Release workflow accepts a manual run from `main` with a bare version,
 tags locally before building, signs and notarises, then requires startup checks
 on macOS 26 and 27 before pushing the tag and publishing the release. Pushes
-changing release-related files repeat the process with a local `9999.0.0` tag
-without publishing. Dependabot dry runs skip signing and notarisation.
+changing `.github/workflows/release.yml` trigger a dry run with a local
+`9999.0.0` tag and ad hoc signing, skipping notarisation and publishing.
+Missing or incomplete signing credentials fail the release.
 No email credentials are available to CI. Dependency updates are proposed
 through Dependabot.
 App bundles include the project licence and generated dependency notices.

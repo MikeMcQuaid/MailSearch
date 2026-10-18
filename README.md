@@ -116,11 +116,11 @@ CI runs style, tests and analysis independently, including Address and
 Thread Sanitizer tests in separate build directories. Both sanitizers halt on
 the first finding and block CI on failure. Compiler warnings in app and
 test targets are errors. Tests use synthetic data and never access real mail or credentials.
-CI caches dependency downloads and signs and notarises the app when the
-signing secrets are available, uploading the app ZIP.
-Pushes that change release files also test signing, notarisation and app
-startup. Run the Release workflow from `main` with a bare `MAJOR.MINOR.PATCH`
-version to publish automatically after the macOS 26 and 27 startup checks.
+CI caches dependency downloads and uploads an ad hoc signed app ZIP.
+Pushes changing `.github/workflows/release.yml` also test app startup.
+Developer ID signing, notarisation and releases run only on manual dispatch.
+Run the Release workflow from `main` with a bare `MAJOR.MINOR.PATCH` version
+to publish automatically after the macOS 26 and 27 startup checks.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development conventions,
 [ARCHITECTURE.md](ARCHITECTURE.md) for the design and
