@@ -39,7 +39,7 @@ let package = Package(
             name: "MailSearchAppSources",
             dependencies: ["MailSearchData", "MailSearchFeatures"],
             path: "App",
-            exclude: ["Info.plist", "MailSearch.entitlements", "Icons"],
+            exclude: ["Info.plist", "MailSearch.entitlements", "Icons", "Assets.xcassets"],
             swiftSettings: userInterface,
         ),
         .testTarget(name: "MailSearchDomainTests", dependencies: ["MailSearchDomain"], swiftSettings: checked),

@@ -1,9 +1,15 @@
 # MailSearch icon
 
-Generated with the built-in imagegen tool on 6 October 2026. The transparent
-source is `AppIcon.icon/Assets/MailSearch.png`; Icon Composer supplies the blue
-tile and appearance variants. The old SVG is retained as an unused design source.
+Option A, selected on 18 October 2026: a flat white envelope and amber search
+lens on a teal tile, following MinMaxCal and AgentIDE's simple geometric marks.
 
-Prompt:
+The editable source is `AppIcon.icon/Assets/MailSearch.svg`. The envelope fold
+and lens centre are transparent so the background shows through in every
+appearance. Icon Composer supplies the solid teal tile, darker background and
+monochrome tinted variant, with foreground shadows and translucency disabled.
+The earlier generated glass PNG has been replaced by this vector artwork.
 
-> Use case: logo-brand. Create an original polished macOS app icon foreground for MailSearch, an email search companion. Asset is a square 1024 by 1024 transparent PNG to be placed on a blue rounded-square Icon Composer background. Subject: one luminous frosted white glass closed envelope, with a substantial warm gold magnifying glass overlapping its lower right corner. Native macOS Tahoe Liquid Glass styling, clean dimensional bevels and restrained highlights, front-facing, immediately readable at small sizes. Centre the combined silhouette, keep a generous transparent margin of about 15 percent on every edge. Only the envelope and search lens. No text, letters, border, tile, background rectangle, checkerboard, watermark or extra objects. Genuine transparent background.
+`../Assets.xcassets/MenuBarIcon.imageset/MailSearch.svg` uses the same geometry
+in a cropped 20 × 18-point monochrome template. A transparent gap around the
+lens keeps the overlapping shapes distinct at menu-bar size. macOS supplies
+the foreground colour for light, dark and selected menu-bar appearances.

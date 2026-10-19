@@ -40,7 +40,8 @@ struct MailSearchApp: App {
             .frame(width: 420, height: 620)
             .onDisappear { model.cancelPreview() }
         } label: {
-            Image(systemName: "envelope")
+            // swiftlint:disable:next prefer_asset_symbols - SwiftPM checks this file without the app's asset symbols.
+            Image("MenuBarIcon")
                 .accessibilityLabel("MailSearch")
                 .help("MailSearch: search and flag server mail")
         }

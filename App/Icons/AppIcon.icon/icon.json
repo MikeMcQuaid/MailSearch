@@ -1,17 +1,17 @@
 {
   "fill": {
-    "automatic-gradient": "extended-srgb:0.06,0.45,0.60,1.00"
+    "solid": "extended-srgb:0.090196,0.486275,0.611765,1.00"
   },
   "fill-specializations": [
     {
       "value": {
-        "automatic-gradient": "extended-srgb:0.06,0.45,0.60,1.00"
+        "solid": "extended-srgb:0.090196,0.486275,0.611765,1.00"
       }
     },
     {
       "appearance": "dark",
       "value": {
-        "automatic-gradient": "extended-srgb:0.025,0.17,0.27,1.00"
+        "solid": "extended-srgb:0.025,0.17,0.27,1.00"
       }
     }
   ],
@@ -31,10 +31,10 @@
               }
             }
           ],
-          "image-name": "MailSearch.png",
+          "image-name": "MailSearch.svg",
           "name": "Envelope and search lens",
           "position": {
-            "scale": 0.95,
+            "scale": 1.14,
             "translation-in-points": [
               0,
               0
@@ -44,11 +44,11 @@
       ],
       "shadow": {
         "kind": "neutral",
-        "opacity": 0.5
+        "opacity": 0
       },
       "translucency": {
-        "enabled": true,
-        "value": 0.5
+        "enabled": false,
+        "value": 0
       }
     }
   ],
