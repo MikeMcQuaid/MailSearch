@@ -78,7 +78,7 @@ rebuilding; see [authentication](AUTHENTICATION.md#keychain-access-and-rebuilds)
 
 ## ⚙️ Configuration
 
-Click the envelope in the menu bar. Allow MailSearch under **System
+Click the envelope and search lens in the menu bar. Allow MailSearch under **System
 Settings → Privacy & Security → Automation** when prompted, then open
 **Settings → Accounts** to connect accounts discovered from Mail.app.
 

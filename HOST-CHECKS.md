@@ -5,6 +5,19 @@ Automated tests never read real Mail accounts, mail or Keychain items.
 Build 10 removes all message-opening integration with Mail.app. Earlier opening
 checks below are historical and no longer apply; Mail automation is discovery-only.
 
+## Flat icon (18 October 2026)
+
+- Option A replaces the glass artwork with a flat white envelope and amber
+  search lens on teal. The compiled ICNS preview was inspected for shape,
+  spacing and transparent cut-outs.
+- Check the rebuilt app in Finder and Settings → About in light, dark and
+  tinted appearances. Confirm the fold and lens centre show the tile colour.
+- The menu-bar template uses the same envelope and lens in monochrome, with a
+  transparent separation around the lens. Its compiled template flag and
+  20 × 18-point size were verified, and light/dark previews were inspected.
+  Check it on light and dark menu bars, including while the panel is open,
+  and confirm VoiceOver announces MailSearch.
+
 ## Recorded in development
 
 - Xcode 27.0 (27A5228h), Swift 6.4, arm64, macOS 27 SDK.

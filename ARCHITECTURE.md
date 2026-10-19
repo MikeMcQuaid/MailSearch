@@ -392,7 +392,9 @@ required to reproduce each build.
 ## Native presentation and icons
 
 An LSUIElement app exposes a 420-point-wide window-style MenuBarExtra like MinMaxCal,
-with a template envelope symbol that adapts to menu bar appearance. Opening Settings
+with a monochrome template envelope and search lens matching the app icon.
+The vector asset adapts to menu bar appearance and separates the overlapping
+lens with a transparent gap for readability at 20 × 18 points. Opening Settings
 hides the active panel before bringing the Settings scene forward.
 A native Settings scene has Accounts and About tabs. About receives the running
 app's explicitly loaded bundled icon and version from App, keeping bundle
@@ -407,10 +409,10 @@ Explicit operations may finish while the panel is hidden;
 an idle menu bar does no polling.
 Liquid Glass is reserved for controls; results retain a readable content surface.
 Native controls respect system contrast, transparency and motion settings.
-`App/Icons/AppIcon.icon` contains a generated transparent envelope and search
-lens, with dark and tinted specialisations, following MinMaxCal's Icon Composer
-packaging. `actool` compiles it into the app's resources during `script/build`.
-About loads the resulting AppIcon.icns directly. The generation prompt is
+`App/Icons/AppIcon.icon` contains a flat SVG envelope and amber search lens on
+a solid teal tile, with dark and tinted specialisations, following MinMaxCal's
+Icon Composer packaging. `actool` compiles it during `script/build`.
+About loads the resulting AppIcon.icns directly. The design notes are
 retained beside the icon source.
 The accounts list shows the IMAP login only when it differs from the displayed
 addresses, omitting endpoint and saved-password status lines. Failed search
