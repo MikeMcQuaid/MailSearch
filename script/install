@@ -2,6 +2,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 script/build
+osascript -e 'quit app "MailSearch"' &>/dev/null || true
 rm -rf /Applications/MailSearch.app
 ditto MailSearch.app /Applications/MailSearch.app
-printf 'Installed /Applications/MailSearch.app. Quit and reopen MailSearch to use this build.\n'
+open /Applications/MailSearch.app
+printf 'Installed and relaunched /Applications/MailSearch.app.\n'

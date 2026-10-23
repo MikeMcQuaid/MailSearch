@@ -122,8 +122,9 @@ checks below are historical and no longer apply; Mail automation is discovery-on
 
 ## First launch
 
-1. Quit any old MailSearch build. Run `script/build`, then `open MailSearch.app`
-   as your normal user. Click its envelope in the menu bar, then Settings.
+1. Run `script/install` as your normal user, including with an older build
+   already running. Confirm it quits that build and launches only the newly
+   installed /Applications/MailSearch.app. Click its envelope, then Settings.
    The app no longer shows a Dock icon or opens a main window at launch.
 2. Allow the Automation prompt during initial discovery. If denied, enable
    MailSearch → Mail under System Settings → Privacy & Security →

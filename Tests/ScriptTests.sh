@@ -1,5 +1,5 @@
 #!/bin/bash
-# Check versioning and build failures without accessing Mail or credentials.
+# Check development scripts without accessing Mail or credentials.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -62,6 +62,51 @@ for log in failure success; do
   done
 done
 echo 'Build script tests passed'
+
+cp script/install "${scratch}/script/install"
+mkdir -p "${scratch}/install-bin"
+cat >"${scratch}/install-bin/command" <<'COMMAND'
+#!/bin/bash
+set -euo pipefail
+command="$(basename "$0")"
+printf '%s\n' "${command}${*:+ }$*" >>"${INSTALL_TEST_LOG}"
+[[ "${command}" != "${INSTALL_TEST_FAILURE}" ]]
+COMMAND
+for command in osascript rm ditto open; do
+  cp "${scratch}/install-bin/command" "${scratch}/install-bin/${command}"
+done
+cp "${scratch}/install-bin/command" "${scratch}/script/build"
+chmod +x "${scratch}/install-bin/"* "${scratch}/script/build"
+export INSTALL_TEST_LOG="${scratch}/install.log"
+cat >"${scratch}/install-expected.log" <<'EXPECTED'
+build
+osascript -e quit app "MailSearch"
+rm -rf /Applications/MailSearch.app
+ditto MailSearch.app /Applications/MailSearch.app
+open /Applications/MailSearch.app
+EXPECTED
+for INSTALL_TEST_FAILURE in none osascript build ditto; do
+  export INSTALL_TEST_FAILURE
+  : >"${INSTALL_TEST_LOG}"
+  status=0
+  PATH="${scratch}/install-bin:${PATH}" "${scratch}/script/install" &>/dev/null || status=$?
+  case "${INSTALL_TEST_FAILURE}" in
+  none | osascript)
+    [[ "${status}" == 0 ]] || exit 1
+    diff -u "${scratch}/install-expected.log" "${INSTALL_TEST_LOG}"
+    ;;
+  build | ditto)
+    [[ "${status}" != 0 ]] || exit 1
+    if [[ "${INSTALL_TEST_FAILURE}" == build ]]; then
+      head -1 "${scratch}/install-expected.log" >"${scratch}/install-failure.log"
+    else
+      head -4 "${scratch}/install-expected.log" >"${scratch}/install-failure.log"
+    fi
+    diff -u "${scratch}/install-failure.log" "${INSTALL_TEST_LOG}"
+    ;;
+  esac
+done
+echo 'Install script tests passed without changing installed or running apps'
 
 cp script/package "${scratch}/script/package"
 cat >"${scratch}/bin/security" <<'SECURITY'
