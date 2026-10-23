@@ -323,7 +323,9 @@ asset and string catalogue symbols. The explicit `arm64` architecture keeps
 app builds limited to Apple silicon. There are no Run Script build phases;
 version generation is a scheme pre-action.
 
-`script/build` creates the sandboxed app. `script/test` runs pure rules,
+`script/build` creates the sandboxed app. `script/install` builds, quits the
+previous app, replaces /Applications/MailSearch.app and launches the installed
+bundle through LaunchServices. `script/test` runs pure rules,
 model fakes and a loopback-only IMAP fixture, with no Mail or real Keychain
 access. TLS fixtures generate short-lived synthetic certificates with the
 system `openssl` tool, scoped to temporary directories. Connection-specific

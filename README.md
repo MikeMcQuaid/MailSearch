@@ -68,7 +68,8 @@ script/build
 open MailSearch.app
 ```
 
-Use `script/install` to build and copy the app to /Applications.
+Use `script/install` to build, quit the previous app, copy it to /Applications
+and launch the newly installed version.
 No public binary release or Homebrew cask is available yet.
 
 The app uses App Sandbox and Hardened Runtime. Local builds are signed
@@ -99,7 +100,7 @@ See [SEARCH.md](SEARCH.md) for matching, exclusions and explicit limits.
 
 - `script/bootstrap`: install Brewfile tools and generate the Xcode project
 - `script/build`: build and sign the app; `MailSearch.app` symlinks the output
-- `script/install`: build, then copy the app to /Applications
+- `script/install`: build, quit the previous app, install to /Applications and relaunch
 - `script/test`: unit, native view and loopback IMAP integration tests
 - `script/style [--fix]`: Swift and shell style, plus workflow checks
 - `script/analyze`: dependency boundaries, SwiftLint analysis and Periphery
