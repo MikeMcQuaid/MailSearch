@@ -1,6 +1,28 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+fold -s -w 80 README.md | awk '
+  END {
+    if (NR > 100) {
+      print "README.md: keep at most 100 lines when wrapped at 80 columns"
+      exit 1
+    }
+  }
+'
+awk '
+  /^## / { features = ($0 ~ /^## (✨ )?Features[[:space:]]*$/); found += features }
+  features && /^[[:space:]]*[-*+][[:space:]]/ { count++ }
+  END {
+    if (!found) {
+      print "README.md: missing Features section"
+      exit 1
+    }
+    if (count > 5) {
+      printf "README.md: Features has %d bullets; keep at most 5.\n", count
+      exit 1
+    }
+  }
+' README.md
 scripts=(script/analyze script/bootstrap script/build script/install script/package script/prepare script/style script/test script/version script/zip Tests/*.sh)
 if [[ "${1:-}" == --fix ]]; then
   swiftformat Sources App Tests script/support Package.swift vendor/SwiftMail/Package.swift
