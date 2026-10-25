@@ -342,7 +342,9 @@ AgentIDE's disabled checks. AgentIDE's cohesive helper files, internal defaults
 and lifecycle ordering are retained where splitting them would obscure ownership.
 Tests allow literal fixture numbers. Protocol limits, Apple-event bridging and
 native layout values have explicitly scoped exceptions; there is no baseline.
-ShellCheck, shfmt, actionlint and zizmor also run.
+ShellCheck, shfmt, actionlint and zizmor also run. The README is limited to
+five Features bullets and 100 lines after wrapping at 80 columns, including
+blank lines, both locally and in CI.
 `script/analyze` checks dependency/import and read-only API boundaries,
 then builds with warnings as errors and runs SwiftLint analysis and Periphery.
 Both passes run even if one fails, and either failure makes analysis fail.

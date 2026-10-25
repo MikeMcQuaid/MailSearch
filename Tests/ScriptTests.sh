@@ -29,11 +29,11 @@ fi
 git -C "${scratch}" tag -d v2.0.0 &>/dev/null
 echo 'Version script tests passed'
 
-cp script/bootstrap script/build "${scratch}/script/"
+cp script/bootstrap script/build script/style "${scratch}/script/"
 mkdir -p "${scratch}/bin" "${scratch}/MailSearch.xcodeproj" \
   "${scratch}/.DerivedData/Build/Products/Release/MailSearch.app"
 touch "${scratch}/Package.resolved"
-for command in brew xcodegen python3 codesign; do
+for command in brew xcodegen python3 codesign swiftformat swiftlint shellcheck shfmt actionlint zizmor; do
   printf '#!/bin/bash\nexit 0\n' >"${scratch}/bin/${command}"
 done
 printf '#!/bin/bash\nexit 99\n' >"${scratch}/script/prepare"
@@ -45,6 +45,73 @@ exit "${BUILD_TEST_STATUS}"
 BUILDER
 chmod +x "${scratch}/bin/"* "${scratch}/script/"*
 export PATH="${scratch}/bin:${PATH}"
+for marker in - '*' +; do
+  for count in 4 5 6; do
+    {
+      printf '# Fixture\n\n- Outside Features\n\n## ✨ Features\n\n'
+      for ((bullet = 1; bullet <= count; bullet++)); do
+        printf '%s Feature %s\n  Wrapped description.\n' "${marker}" "${bullet}"
+      done
+      printf '\n## Other\n\n- Outside Features\n'
+    } >"${scratch}/README.md"
+    status=0
+    "${scratch}/script/style" >"${scratch}/style.log" 2>&1 || status=$?
+    if [[ "${count}" -le 5 ]]; then
+      [[ "${status}" == 0 ]] || {
+        cat "${scratch}/style.log"
+        exit 1
+      }
+    else
+      [[ "${status}" != 0 ]] || {
+        echo 'Style accepted six README features' >&2
+        exit 1
+      }
+      grep -q 'README.md: Features has 6 bullets; keep at most 5' "${scratch}/style.log"
+    fi
+  done
+done
+for count in 99 100 101; do
+  {
+    printf '## ✨ Features\n- Feature\n## Other\n'
+    for ((line = 3; line < count; line++)); do
+      printf 'Paragraph.\n'
+    done
+  } >"${scratch}/README.md"
+  status=0
+  "${scratch}/script/style" >"${scratch}/style.log" 2>&1 || status=$?
+  if [[ "${count}" -le 100 ]]; then
+    [[ "${status}" == 0 ]] || {
+      cat "${scratch}/style.log"
+      exit 1
+    }
+  else
+    [[ "${status}" != 0 ]] || {
+      echo 'Style accepted 101 README lines' >&2
+      exit 1
+    }
+    grep -q 'README.md: keep at most 100 lines when wrapped at 80 columns' "${scratch}/style.log"
+  fi
+done
+{
+  printf '## ✨ Features\n- Feature\n## Other\n'
+  for ((word = 0; word < 1000; word++)); do
+    printf 'Paragraph. '
+  done
+  printf '\n'
+} >"${scratch}/README.md"
+if "${scratch}/script/style" >"${scratch}/style.log" 2>&1; then
+  echo 'Style accepted a README exceeding the wrapped line limit' >&2
+  exit 1
+fi
+grep -q 'README.md: keep at most 100 lines when wrapped at 80 columns' "${scratch}/style.log"
+printf '# No Features section\n' >"${scratch}/README.md"
+if "${scratch}/script/style" >"${scratch}/style.log" 2>&1; then
+  echo 'Style accepted a missing README Features section' >&2
+  exit 1
+fi
+grep -q 'README.md: missing Features section' "${scratch}/style.log"
+echo 'README style tests passed'
+
 "${scratch}/script/bootstrap"
 echo 'Bootstrap does not resolve Swift packages'
 printf '#!/bin/bash\nexit 0\n' >"${scratch}/script/prepare"
