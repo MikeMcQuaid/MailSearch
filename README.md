@@ -34,7 +34,7 @@ or keeping another email client open.
 - IMAP accounts configured in Mail.app, permitting implicit TLS
   (normally port 993). STARTTLS is not supported.
 - Automation permission to discover accounts from Mail.app.
-- To build: Xcode 27 with Swift 6.4 and [Homebrew](https://brew.sh).
+- To build: Xcode 27.2 with Swift 6.4 and [Homebrew](https://brew.sh).
 
 ## 📦 Installation
 

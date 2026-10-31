@@ -4,7 +4,7 @@ Read [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md) and
 [AGENTS.md](AGENTS.md) first. Keep changes small and focused on searching,
 previewing and flagging server mail. Discuss larger changes before coding.
 
-Install Xcode 27 and Homebrew, then run:
+Install Xcode 27.2 and Homebrew, then run:
 
 ```sh
 script/bootstrap
@@ -15,8 +15,25 @@ ASAN_OPTIONS=halt_on_error=1 script/test --sanitize address --configuration rele
 TSAN_OPTIONS=halt_on_error=1 script/test --sanitize thread \
   --scratch-path .build/thread-sanitizer
 script/build
+bash Tests/ProjectTests.sh
 script/analyze
 ```
+
+The tracked `MailSearch.xcodeproj/project.xcproj` and shared scheme are the
+application project. Edit them directly or use Xcode; no generation is needed.
+`App` is a synchronised source folder. Its property list, entitlements and
+opaque `Icons` directory are excluded from automatic membership; the icon,
+licence and dependency notices are explicit resources. Swift package source
+and test directories retain SwiftPM's automatic discovery and target boundaries.
+Run `script/bootstrap` before opening the project to create its version settings
+and `script/prepare` to prepare dependencies. Default preparation creates the
+version settings, copies the root lockfile into the workspace and asks Xcode
+which Derived Data location it uses. It resolves and patches both that location's
+`SourcePackages/checkouts` and `.build/checkouts`. Run preparation as the user
+who builds in Xcode, and repeat it after dependency or location changes or
+clearing checkouts. Xcode user settings remain ignored.
+`Tests/ProjectTests.sh` builds unsigned Debug source and resource probes, including
+recursive exclusion and target isolation checks, then removes them on exit.
 
 Style enables all rules. Prefer configuring agreement between the tools to
 disabling a rule. Document unavoidable conflicts in the configuration and keep
@@ -45,7 +62,8 @@ for private vulnerability reports.
 
 Dependencies are locked in `Package.resolved`, except SwiftMail, whose
 version and exact revision are in `vendor/SwiftMail/upstream.json`.
-Run `script/prepare` before invoking SwiftPM or opening the package in Xcode.
+Run `script/prepare` before invoking SwiftPM or opening `MailSearch.xcodeproj`
+in Xcode.
 For SwiftMail updates, review its local manifest and Network.framework patch
 in `vendor/SwiftMail`, the three extensions in `script/support` and the
 protocol/TLS fixtures. Dependabot does not update this separate upstream pin.

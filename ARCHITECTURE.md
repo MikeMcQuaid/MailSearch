@@ -311,8 +311,14 @@ Headers render as plain text and never load remote content.
 
 ## Checks
 
-XcodeGen generates the application project from `project.yml`, depending
-on the local Swift package products. The app keeps its sandbox and hardened
+The tracked native JSON `MailSearch.xcodeproj/project.xcproj` and shared scheme
+define the application project, depending on the local Swift package products.
+Xcode 27.2 is the development toolchain. `App` uses a synchronised source folder;
+its property list, entitlements and opaque `Icons` directory are excluded from
+automatic build membership, including descendants. The icon, licence and
+dependency notices remain explicit resources. SwiftPM discovers library and
+test sources within their existing target directories. No project generator or
+duplicate legacy project is required. The app keeps its sandbox and hardened
 runtime entitlements. `script/version` derives the marketing version from
 the nearest reachable bare version tag, defaulting to `0.0.0`, and counts
 `origin/main` commits for the build number, falling back to `main` or `HEAD`.
@@ -322,6 +328,14 @@ The app enables dead code stripping, user script sandboxing and generated
 asset and string catalogue symbols. The explicit `arm64` architecture keeps
 app builds limited to Apple silicon. There are no Run Script build phases;
 version generation is a scheme pre-action.
+
+Default `script/prepare` creates the version settings, copies `Package.resolved`
+into the workspace and queries Xcode's selected Derived Data location. It resolves
+and applies the same revision-checked patches to that location's
+`SourcePackages/checkouts` and `.build/checkouts`. Direct builds use prepared
+dependencies without location overrides or assumptions about Xcode preferences.
+Preparation runs as the user who builds in Xcode. Custom scratch paths, including
+analysis and sanitizers, patch only that directory without querying Xcode.
 
 `script/build` creates the sandboxed app. `script/install` builds, quits the
 previous app, replaces /Applications/MailSearch.app and launches the installed
@@ -347,6 +361,9 @@ five Features bullets and 100 lines after wrapping at 80 columns, including
 blank lines, both locally and in CI.
 `script/analyze` checks dependency/import and read-only API boundaries,
 then builds with warnings as errors and runs SwiftLint analysis and Periphery.
+Periphery uses its supported Swift package manifest integration and the fresh
+compiler index, so it does not parse the JSON Xcode project. SwiftLint consumes
+compiler invocations rather than the project format.
 Both passes run even if one fails, and either failure makes analysis fail.
 The build uses a freshly removed `.build/analyze` directory, captures verbose
 compiler invocations and exports the package description, avoiding Periphery's
@@ -378,14 +395,17 @@ query behaviour lives in `SEARCH.md`, contribution guidance in
 `CONTRIBUTING.md` and distribution setup in `RELEASING.md`. GitHub Actions
 runs independent style, test and analysis jobs. Normal CI builds and uploads
 an ad hoc signed app ZIP without signing secrets or notarisation.
-Test, analysis and release jobs cache dependency downloads, keyed by the
-lockfile and SwiftMail pin. Build output and signing material are not cached.
+Test, analysis and release jobs cache dependency downloads for SwiftPM and Xcode,
+keyed by the lockfile, SwiftMail pin, package manifests and native project, with
+an Xcode 27.2 cache namespace. Keys also include `script/prepare` and
+`script/support/*.patch`; exact restores prevent reusing older patched checkouts.
+Build output and signing material are not cached.
 Developer ID signing, notarisation and releases run only on manual dispatch.
 The Release workflow accepts a manual run from `main` with a bare version,
 tags locally before building, signs and notarises, then requires startup checks
 on macOS 26 and 27 before pushing the tag and publishing the release. Pushes
-changing `.github/workflows/release.yml` trigger a dry run with a local
-`9999.0.0` tag and ad hoc signing, skipping notarisation and publishing.
+changing the release workflow, native project or packaging scripts trigger a dry
+run with a local `9999.0.0` tag and ad hoc signing, skipping notarisation and publishing.
 Missing or incomplete signing credentials fail the release.
 No email credentials are available to CI. Dependency updates are proposed
 through Dependabot.
