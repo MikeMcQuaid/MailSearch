@@ -84,14 +84,31 @@ echo 'Analysis script tests passed'
 
 # Every scratch checkout must receive the pinned dependency fixes.
 cp script/prepare "${scratch}/script/prepare"
+cp Package.resolved "${scratch}/Package.resolved"
+printf '#!/bin/bash\nexit 0\n' >"${scratch}/script/version"
+chmod +x "${scratch}/script/version"
+cat >"${scratch}/bin/xcodebuild" <<'XCODE'
+#!/bin/bash
+[[ "$*" == *'-showBuildSettings -json'* ]] || exit 99
+exit_status="${PREPARE_TEST_XCODE_STATUS:-0}"
+[[ "$exit_status" == 0 ]] || exit "$exit_status"
+printf '[{"buildSettings":{"BUILD_DIR":"%s/Build/Products"}}]\n' "${PREPARE_TEST_XCODE_PACKAGES%/SourcePackages}"
+XCODE
+chmod +x "${scratch}/bin/xcodebuild"
 cat >"${scratch}/bin/swift" <<'SWIFT'
 #!/bin/bash
-[[ "$*" == "package --disable-sandbox --scratch-path ${PREPARE_TEST_SCRATCH} --force-resolved-versions resolve" ]]
+[[ "$*" == "package --disable-sandbox --scratch-path $4 --force-resolved-versions resolve" ]] || exit 99
+[[ "$4" == "${PREPARE_TEST_SCRATCH}" || ( "${PREPARE_TEST_SCRATCH}" == .build && "$4" == "${PREPARE_TEST_XCODE_PACKAGES}" ) ]]
 SWIFT
 cat >"${scratch}/bin/git" <<'GIT'
 #!/bin/bash
-[[ "$1" == -C && "$2" == "${PREPARE_TEST_SCRATCH}/checkouts/"* ]] || exit 99
+[[ "$1" == -C ]] || exit 99
+[[ "$2" == "${PREPARE_TEST_SCRATCH}/checkouts/"* || ( "${PREPARE_TEST_SCRATCH}" == .build && "$2" == "${PREPARE_TEST_XCODE_PACKAGES}/checkouts/"* ) ]] || exit 99
 if [[ "$3" == rev-parse ]]; then
+  if [[ "${PREPARE_TEST_BAD_REVISION:-}" == 1 && "$2" == "${PREPARE_TEST_XCODE_PACKAGES}/checkouts/"* ]]; then
+    echo invalid
+    exit 0
+  fi
   case "$2" in
     */swift-nio) echo 21de5f08c1a166a6dd293d0e587ad977bf8dac5d ;;
     */swift-nio-imap) echo d67f1243f731457cb9f2eb0beb27eff9e533bf7b ;;
@@ -104,10 +121,32 @@ else
 fi
 GIT
 chmod +x "${scratch}/bin/git"
-for PREPARE_TEST_SCRATCH in .build .build/address-sanitizer .build/thread-sanitizer .build/analyze; do
-  export PREPARE_TEST_SCRATCH
-  : >"${ANALYSIS_CALLS}"
-  "${scratch}/script/prepare" "$PREPARE_TEST_SCRATCH"
-  [[ "$(wc -l <"${ANALYSIS_CALLS}" | tr -d ' ')" == 2 ]]
+for PREPARE_TEST_XCODE_PACKAGES in "${scratch}/Library/Developer/Xcode/DerivedData/MailSearch-fixture/SourcePackages" "${scratch}/Xcode DerivedData/SourcePackages"; do
+  export PREPARE_TEST_XCODE_PACKAGES
+  for PREPARE_TEST_SCRATCH in .build .build/address-sanitizer .build/thread-sanitizer .build/analyze; do
+    export PREPARE_TEST_SCRATCH
+    : >"${ANALYSIS_CALLS}"
+    "${scratch}/script/prepare" "$PREPARE_TEST_SCRATCH"
+    if [[ "${PREPARE_TEST_SCRATCH}" == .build ]]; then
+      [[ "$(wc -l <"${ANALYSIS_CALLS}" | tr -d ' ')" == 4 ]] || {
+        echo 'Default preparation must patch both SwiftPM and direct Xcode checkouts' >&2
+        exit 1
+      }
+      [[ "$(cat "${ANALYSIS_CALLS}")" == "$(printf '%s\n' .build/checkouts/swift-nio .build/checkouts/swift-nio-imap "${PREPARE_TEST_XCODE_PACKAGES}/checkouts/swift-nio" "${PREPARE_TEST_XCODE_PACKAGES}/checkouts/swift-nio-imap")" ]] || exit 1
+      cmp "${scratch}/Package.resolved" "${scratch}/MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+    else
+      [[ "$(wc -l <"${ANALYSIS_CALLS}" | tr -d ' ')" == 2 ]] || exit 1
+    fi
+  done
 done
+export PREPARE_TEST_SCRATCH=.build PREPARE_TEST_BAD_REVISION=1
+if "${scratch}/script/prepare" &>/dev/null; then
+  echo 'Preparation accepted the wrong Xcode dependency revision' >&2
+  exit 1
+fi
+export PREPARE_TEST_BAD_REVISION=0 PREPARE_TEST_XCODE_STATUS=65
+if "${scratch}/script/prepare" &>/dev/null; then
+  echo 'Preparation accepted a failed Xcode settings query' >&2
+  exit 1
+fi
 echo 'Dependency patches follow the selected scratch directory'

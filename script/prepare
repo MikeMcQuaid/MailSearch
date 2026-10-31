@@ -3,15 +3,31 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 # Keep the maintained parser and command handlers, with Apple's TLS transport.
 python3 script/prepare-swiftmail.py
-scratch="${1:-.build}"
-swift package --disable-sandbox --scratch-path "$scratch" --force-resolved-versions resolve
+scratches=("${1:-.build}")
+if [[ "${scratches[0]}" == .build ]]; then
+  script/version --xcconfig .build/version.xcconfig
+  mkdir -p MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+  cp Package.resolved MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+  args=(-project MailSearch.xcodeproj -scheme MailSearchApp -configuration Debug
+    -destination "${XCODE_DESTINATION:-platform=macOS,arch=arm64}"
+    -onlyUsePackageVersionsFromResolvedFile -showBuildSettings -json)
+  if [[ -n "${SV_SESSION_ID:-}" ]]; then
+    args+=(-IDEPackageSupportDisableManifestSandbox=1 -IDEPackageSupportDisablePackageSandbox=1)
+  fi
+  build_dir="$(xcodebuild "${args[@]}" | plutil -extract 0.buildSettings.BUILD_DIR raw -expect string -o - -)"
+  [[ "$build_dir" == /*/Build/Products ]] || exit 1
+  scratches+=("$(dirname "$(dirname "$build_dir")")/SourcePackages")
+fi
 apply_dependency_patch() {
   local checkout="$scratch/checkouts/$1"
   local patch="$PWD/script/support/$3"
-  [[ "$(git -C "$checkout" rev-parse HEAD)" == "$2" ]]
+  [[ "$(git -C "$checkout" rev-parse HEAD)" == "$2" ]] || exit 1
   if ! git -C "$checkout" apply --reverse --check "$patch" &>/dev/null; then
     git -C "$checkout" apply "$patch"
   fi
 }
-apply_dependency_patch swift-nio 21de5f08c1a166a6dd293d0e587ad977bf8dac5d nio-checked-continuation.patch
-apply_dependency_patch swift-nio-imap d67f1243f731457cb9f2eb0beb27eff9e533bf7b nio-imap-empty-base64.patch
+for scratch in "${scratches[@]}"; do
+  swift package --disable-sandbox --scratch-path "$scratch" --force-resolved-versions resolve
+  apply_dependency_patch swift-nio 21de5f08c1a166a6dd293d0e587ad977bf8dac5d nio-checked-continuation.patch
+  apply_dependency_patch swift-nio-imap d67f1243f731457cb9f2eb0beb27eff9e533bf7b nio-imap-empty-base64.patch
+done

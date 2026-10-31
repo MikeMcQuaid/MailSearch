@@ -13,7 +13,8 @@ pinned to commit hashes. Dependabot proposes weekly action and Swift updates.
 
 Builds use GitHub's public
 [Xcode 27 runner](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
-for Swift 6.4. Release startup checks also run on macOS 26. The
+with Xcode 27.2 selected for Swift 6.4 and native JSON projects.
+Release startup checks also run on macOS 26. The
 `xcode-27` entry in actionlint's configuration recognises that public
 preview label; it does not require a self-hosted machine.
 
@@ -23,8 +24,11 @@ exercises app archiving. It never receives email credentials.
 Style checks include actionlint and offline zizmor workflow analysis.
 
 App builds default to Release. Test, analysis and release jobs cache Swift
-package downloads, keyed by the lockfile and SwiftMail pin. Compiled output,
-signing material and app data are not cached.
+package downloads for SwiftPM and direct Xcode builds in an Xcode 27.2 namespace,
+keyed by the lockfile, SwiftMail pin, package manifests, native project,
+preparation script and dependency patches. Cache restores require an exact key
+so a changed patch cannot restore an older modified checkout.
+Compiled output, signing material and app data are not cached.
 
 Normal CI builds with ad hoc signing and uploads the app ZIP without
 signing secrets or notarisation. CI artefacts do not create a GitHub release.
@@ -83,8 +87,9 @@ Runtime, notarises with Apple, staples the ticket and verifies Gatekeeper
 acceptance before recreating the ZIP.
 
 The Release workflow also performs a dry run on pushes changing
-`.github/workflows/release.yml`. It creates a local `9999.0.0` tag, builds
-with ad hoc signing and launches the packaged app on macOS 26 and 27.
+the release workflow, native project or packaging scripts. It creates a local
+`9999.0.0` tag, builds with ad hoc signing and launches the packaged app on macOS
+26 and 27.
 The app ZIP is uploaded as a workflow artefact. Dry runs use no signing
 secrets, skip notarisation and never push the tag or create a release.
 

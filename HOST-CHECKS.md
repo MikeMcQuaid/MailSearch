@@ -5,6 +5,73 @@ Automated tests never read real Mail accounts, mail or Keychain items.
 Build 10 removes all message-opening integration with Mail.app. Earlier opening
 checks below are historical and no longer apply; Mail automation is discovery-only.
 
+## Native project migration (31 October 2026)
+
+- Xcode 27.2 (27B52), Swift 6.4 and macOS 27.2 on arm64. Xcode's converter
+  produced the tracked `project.xcproj`; the shared scheme names the actual
+  `MailSearch.app` product. All Debug and Release build settings, target identity
+  and package dependencies were compared with the original project.
+- Unsigned Debug builds and the source membership checks passed. Temporary
+  sources were added, renamed and removed in all seven app, library and test
+  modules without project or scheme edits. Identically named declarations
+  verified target isolation. Resource discovery and recursive exclusions passed.
+  Excluding `Icons` alone initially compiled an invalid nested Swift probe and
+  copied its text resource; marking that directory opaque fixed both failures.
+- The ad hoc signed Release build and ZIP passed signature verification, with
+  App Sandbox and Hardened Runtime retained. The arm64 bundle contains the icon,
+  asset catalogue, licence, notices and SwiftNIO's privacy resource bundle,
+  without source configuration files or excluded descendants. The dependency
+  bundle's generated `Info.plist` is retained. Package libraries are linked
+  statically; there are no embedded frameworks or extensions. Git-derived version
+  `0.1.1 (23)` was preserved.
+- An unsigned Release `xcodebuild archive` produced a recognised application
+  archive with matching app, executable and dSYM names. This does not validate
+  Developer ID signing, notarisation or Gatekeeper distribution acceptance.
+- All 76 tests passed normally, with Address Sanitizer in Release and with
+  Thread Sanitizer in Debug, alongside the shell regression checks. Style fixes
+  and checks passed. SwiftLint analysed all 45 application and test source files
+  with no findings, and Periphery reported no unused code from the fresh index.
+  Periphery 3.8.0 uses its supported Swift package manifest integration, avoiding
+  any need to parse the JSON project or retain a legacy project. The existing
+  native SwiftPM index build engine remains deprecated but available in this
+  toolchain. Hosted workflow execution is still required to validate the runner.
+- Bootstrap passed with all eight dependencies installed using
+  `HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_FROM_API=1`. The normal Homebrew
+  API refresh could not acquire its host-owned download lock inside Sandvault;
+  no repository workaround or permission changes were needed.
+- In the owner's GUI session, open the tracked project and run the shared scheme.
+  Check the menu bar icon, Settings → About icon and displayed version, then
+  confirm the archive appears correctly in Xcode's organiser. These GUI checks
+  have not been performed as part of this migration.
+- Hosted CI and the manual signed Release workflow still need a run, including
+  startup on macOS 26 and 27. No app was launched or real mail accessed during
+  this migration's automated validation.
+
+## Direct Xcode dependencies (31 October 2026)
+
+- Reproduced the review finding: Xcode's default checkout lacked the SwiftNIO
+  continuation patch after preparing only `.build`. Default preparation now asks
+  Xcode for its actual location and patches that checkout and `.build` from the
+  same pins and lockfile.
+- An unsigned Debug build passed without Derived Data or checkout-location
+  overrides. Both SwiftNIO revisions and patches matched before and after that
+  build. The regression checks reject an unexpected Xcode checkout revision and
+  retain preparation of isolated analysis and sanitizer directories.
+- The first location check was masked by this sandbox's global `.DerivedData`
+  preference. CI used its standard `~/Library/Developer/Xcode/DerivedData` path.
+  A fresh fixture also ignored a different shared location, so the ineffective
+  shared settings file was removed. Regression fixtures cover standard unique
+  paths, custom paths containing spaces and failed Xcode settings queries.
+  Workspace state and the generated lockfile remain ignored.
+- All three workflow caches require exact keys containing `script/prepare` and
+  `script/support/*.patch`. Mutation checks verify that editing preparation,
+  editing either patch or adding a patch changes the key. The shared namespace
+  also requires this policy in analysis, which must not resave stale checkouts
+  under a newer key after a broad restore.
+- All 76 tests, the source membership checks, style, the ad hoc Release build
+  and both analysers passed. GUI interaction and signed release checks remain
+  subject to the owner checks above.
+
 ## Flat icon (18 October 2026)
 
 - Option A replaces the glass artwork with a flat white envelope and amber

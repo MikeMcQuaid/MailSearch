@@ -4,6 +4,8 @@
 .test-scratch/
 vendor/SwiftMail/Sources/
 vendor/SwiftMail/LICENSE
-*.xcodeproj/
+xcuserdata/
+*.xcuserstate
+MailSearch.xcodeproj/project.xcworkspace/
 MailSearch.app
 .DS_Store

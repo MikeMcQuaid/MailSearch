@@ -5,12 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 script/prepare
-script/version --xcconfig .build/version.xcconfig
 python3 script/licences.py
-[[ -d MailSearch.xcodeproj ]] || script/bootstrap
-xcodegen generate --use-cache --quiet
-mkdir -p MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
-cp Package.resolved MailSearch.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 JOBS="$(sysctl -n hw.ncpu)"
 [[ -n "${SV_SESSION_ID:-}" ]] && JOBS=6

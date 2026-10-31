@@ -59,6 +59,13 @@ checking their revisions and preserving already-applied patches:
   returns an empty array directly for empty Base64 input, avoiding writes
   to Swift's shared empty-array storage during SASL challenges.
 
+Default preparation covers `.build/checkouts` and discovers Xcode's actual
+`SourcePackages/checkouts` from its build settings, using the root
+`Package.resolved` for both. Run it as the user who builds in Xcode. Custom scratch
+paths receive the same patches without querying Xcode. Prepare after clearing
+checkouts, changing Xcode's location or updating pins. CI restores patched
+checkouts only when the preparation script and dependency patches match its key.
+
 Review these patches when updating their pins in `Package.resolved` and
 update the revision checks in `script/prepare`. Remove a patch when its
 upstream dependency or toolchain fixes the reproduced issue. Run the

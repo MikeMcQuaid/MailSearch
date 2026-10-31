@@ -3,6 +3,41 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+python3 - <<'PYTHON'
+import hashlib
+from pathlib import Path
+import re
+import tempfile
+import xml.etree.ElementTree as ET
+
+project = Path("MailSearch.xcodeproj")
+assert (project / "project.xcproj").is_file(), "Native JSON project is missing"
+assert not (project / "project.pbxproj").exists(), "Legacy project must not remain"
+for reference in ET.parse(project / "xcshareddata/xcschemes/MailSearchApp.xcscheme").iter("BuildableReference"):
+    assert reference.get("BuildableName") == "MailSearch.app", "Scheme product must match the output bundle"
+for workflow in [Path(".github/workflows/tests.yml"), Path(".github/workflows/release.yml")]:
+    for step in workflow.read_text().split("      - name:"):
+        if "uses: actions/cache@" not in step or "/checkouts" not in step:
+            continue
+        patterns = re.findall(r"'([^']+)'", re.search(r"key: (.+)", step)[1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inputs = {path for pattern in patterns for path in Path().glob(pattern) if path.is_file()}
+            inputs.update([Path("script/prepare"), *Path("script/support").glob("*.patch")])
+            for path in inputs:
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_bytes(path.read_bytes())
+            def cache_hash():
+                return hashlib.sha256(b"".join(path.read_bytes() for path in sorted({path for pattern in patterns for path in root.glob(pattern) if path.is_file()}))).digest()
+            original = cache_hash()
+            for path in [Path("script/prepare"), *Path("script/support").glob("*.patch")]:
+                (root / path).write_bytes(path.read_bytes() + b"\n")
+                assert cache_hash() != original, f"{workflow}: changing {path} must invalidate the cache"
+                (root / path).write_bytes(path.read_bytes())
+            (root / "script/support/new-dependency.patch").write_text("Fixture patch\n")
+            assert cache_hash() != original, f"{workflow}: new patches must invalidate the cache"
+        assert "restore-keys:" not in step, f"{workflow}: patched checkouts require exact cache restores"
+PYTHON
 mkdir -p .test-scratch
 scratch="$(mktemp -d "${PWD}/.test-scratch/scripts.XXXXXX")"
 trap 'rm -rf "${scratch}"' EXIT
@@ -33,7 +68,7 @@ cp script/bootstrap script/build script/style "${scratch}/script/"
 mkdir -p "${scratch}/bin" "${scratch}/MailSearch.xcodeproj" \
   "${scratch}/.DerivedData/Build/Products/Release/MailSearch.app"
 touch "${scratch}/Package.resolved"
-for command in brew xcodegen python3 codesign swiftformat swiftlint shellcheck shfmt actionlint zizmor; do
+for command in brew python3 codesign swiftformat swiftlint shellcheck shfmt actionlint zizmor; do
   printf '#!/bin/bash\nexit 0\n' >"${scratch}/bin/${command}"
 done
 printf '#!/bin/bash\nexit 99\n' >"${scratch}/script/prepare"

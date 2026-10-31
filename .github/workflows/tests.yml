@@ -56,15 +56,17 @@ jobs:
           core: false
           cask: false
 
-      - name: Select Xcode 27
+      - name: Select Xcode 27.2
         run: |
-          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27*.app' -print -quit)"
-          if [[ -z "${xcode}" ]]; then
-            echo "::error::Xcode 27 is not installed on this runner image."
+          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27.2*.app' -print -quit)"
+          xcode="${xcode:-/Applications/Xcode.app}"
+          if [[ ! -d "${xcode}" ]]; then
+            echo "::error::Xcode 27.2 is not installed on this runner image."
             exit 1
           fi
           sudo xcode-select -s "${xcode}/Contents/Developer"
           xcodebuild -version
+          [[ "$(xcodebuild -version)" == $'Xcode 27.2\n'* ]]
 
       - name: Download Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain
@@ -77,14 +79,21 @@ jobs:
             .build/checkouts
             .build/repositories
             .build/upstream
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved', 'vendor/SwiftMail/upstream.json') }}
-          restore-keys: ${{ runner.os }}-swiftpm-
+            .DerivedData/MailSearch/SourcePackages/checkouts
+            .DerivedData/MailSearch/SourcePackages/repositories
+            ~/Library/Developer/Xcode/DerivedData/MailSearch-*/SourcePackages/checkouts
+            ~/Library/Developer/Xcode/DerivedData/MailSearch-*/SourcePackages/repositories
+          key: ${{ runner.os }}-xcode-27.2-swiftpm-${{ hashFiles('Package.resolved', 'Package.swift', 'script/prepare', 'script/support/*.patch', 'vendor/SwiftMail/upstream.json', 'vendor/SwiftMail/Package.swift', 'MailSearch.xcodeproj/project.xcproj', 'MailSearch.xcodeproj/xcshareddata/xcschemes/*.xcscheme') }}
 
       - name: Bootstrap
         run: script/bootstrap
 
       - name: Build
         run: script/build
+
+      - name: Check automatic project membership
+        id: project
+        run: bash Tests/ProjectTests.sh
 
       - name: Zip
         run: script/zip
@@ -138,12 +147,14 @@ jobs:
 
       - name: Upload test diagnostics
         if: >-
-          failure() && (steps.test.outcome == 'failure' ||
+          failure() && (steps.project.outcome == 'failure' || steps.test.outcome == 'failure' ||
           steps.address_sanitizer.outcome == 'failure' || steps.thread_sanitizer.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-diagnostics
           path: |
+            .build/project-*.log
+            .build/project-xcode-settings.json
             .build/test-*
             .build/asan-*
             .build/tsan-*
@@ -166,15 +177,17 @@ jobs:
           core: false
           cask: false
 
-      - name: Select Xcode 27
+      - name: Select Xcode 27.2
         run: |
-          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27*.app' -print -quit)"
-          if [[ -z "${xcode}" ]]; then
-            echo "::error::Xcode 27 is not installed on this runner image."
+          xcode="$(find /Applications -maxdepth 1 -name 'Xcode*27.2*.app' -print -quit)"
+          xcode="${xcode:-/Applications/Xcode.app}"
+          if [[ ! -d "${xcode}" ]]; then
+            echo "::error::Xcode 27.2 is not installed on this runner image."
             exit 1
           fi
           sudo xcode-select -s "${xcode}/Contents/Developer"
           xcodebuild -version
+          [[ "$(xcodebuild -version)" == $'Xcode 27.2\n'* ]]
 
       - name: Download Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain
@@ -187,8 +200,11 @@ jobs:
             .build/checkouts
             .build/repositories
             .build/upstream
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved', 'vendor/SwiftMail/upstream.json') }}
-          restore-keys: ${{ runner.os }}-swiftpm-
+            .DerivedData/MailSearch/SourcePackages/checkouts
+            .DerivedData/MailSearch/SourcePackages/repositories
+            ~/Library/Developer/Xcode/DerivedData/MailSearch-*/SourcePackages/checkouts
+            ~/Library/Developer/Xcode/DerivedData/MailSearch-*/SourcePackages/repositories
+          key: ${{ runner.os }}-xcode-27.2-swiftpm-${{ hashFiles('Package.resolved', 'Package.swift', 'script/prepare', 'script/support/*.patch', 'vendor/SwiftMail/upstream.json', 'vendor/SwiftMail/Package.swift', 'MailSearch.xcodeproj/project.xcproj', 'MailSearch.xcodeproj/xcshareddata/xcschemes/*.xcscheme') }}
 
       - name: Bootstrap
         run: script/bootstrap
